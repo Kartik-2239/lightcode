@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/Kartik-2239/lightcode/internal/tui/components"
 	"golang.design/x/clipboard"
 )
 
@@ -24,11 +25,15 @@ func LauchHomePage() {
 }
 
 type model struct {
-	viewport    viewport.Model
-	messages    []string
-	textarea    textarea.Model
-	senderStyle lipgloss.Style
-	err         error
+	viewport         viewport.Model
+	islistSessionWin bool
+	listSession      components.Model
+	messages         []string
+	textarea         textarea.Model
+	senderStyle      lipgloss.Style
+	err              error
+	cache            map[int]string
+	current_cache    int
 }
 
 func initialModel() model {
@@ -59,11 +64,13 @@ Type a message and press Enter to send.`)
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 
 	return model{
-		textarea:    ta,
-		messages:    []string{},
-		viewport:    vp,
-		senderStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
-		err:         nil,
+		textarea:         ta,
+		messages:         []string{},
+		viewport:         vp,
+		islistSessionWin: true,
+		listSession:      components.LaunchSessionList(),
+		senderStyle:      lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
+		err:              nil,
 	}
 }
 
@@ -79,7 +86,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.SetHeight(msg.Height - m.textarea.Height())
 
 		if len(m.messages) > 0 {
-			// Wrap content before setting it.
 			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(strings.Join(m.messages, "\n")))
 		}
 		m.viewport.GotoBottom()
@@ -104,8 +110,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
 			return m, nil
+
 		default:
-			// Send all other keypresses to the textarea.
+			if msg.String() == "up" || msg.String() == "down" {
+				var cmd tea.Cmd
+				m.viewport, cmd = m.viewport.Update(msg)
+				return m, cmd
+			}
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
 			return m, cmd
@@ -122,6 +133,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
+	if m.islistSessionWin {
+		return m.listSession.View()
+	}
 	viewportView := m.viewport.View()
 	v := tea.NewView(viewportView + "\n" + m.textarea.View())
 	c := m.textarea.Cursor()
