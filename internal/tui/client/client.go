@@ -24,7 +24,7 @@ func ListSession() []models.Session {
 }
 
 func GetSessionData(session_id string) []models.Message {
-	resp, err := http.Get("http://localhost:8080/get-session-data")
+	resp, err := http.Get("http://localhost:8080/get-session-data?session_id=" + session_id)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

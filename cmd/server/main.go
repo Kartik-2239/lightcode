@@ -6,4 +6,5 @@ import (
 
 func main() {
 	server.Initialise()
+	// agent.New().Run("how are you doing today", "emily_rudd")
 }

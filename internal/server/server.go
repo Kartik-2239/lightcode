@@ -26,6 +26,7 @@ func getSessionData(w http.ResponseWriter, r *http.Request) {
 	database, _ := db.Connect()
 	var messages []models.Message
 	session_id := r.URL.Query().Get("session_id")
-	database.Table("chats").Select("*").Where("session_id ?", session_id).Find(&messages)
+	database.Table("messages").Select("*").Where("session_id = ?", session_id).Find(&messages)
+	// fmt.Println(messages)
 	json.NewEncoder(w).Encode(messages)
 }
