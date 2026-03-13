@@ -19,12 +19,12 @@ func New() *Agent {
 	return &Agent{}
 }
 
-func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-chan string {
-	ch := make(chan string)
+func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-chan models.StoredMessageData {
+	ch := make(chan models.StoredMessageData)
 	// currentPrompt := prompt
 	database, err := db.Connect()
 	if err != nil {
-		ch <- "Ran into error: " + err.Error()
+		ch <- models.StoredMessageData{Role: "error", Content: "Ran into error: " + err.Error()}
 		close(ch)
 		return ch
 	}
@@ -43,12 +43,6 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 
 	currentPrompt := prompt
 
-	userMessage := models.Message{
-		SessionID: session_id,
-		ID:        fmt.Sprintf("%s-user-%d", session_id, 0),
-		Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: currentPrompt}),
-	}
-	database.Create(&userMessage)
 	go func() {
 		defer close(ch)
 		for i := 0; i < MaxIterations; i++ {
@@ -64,10 +58,11 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			resp := llm.ApiCall(currentPrompt, chats)
 
 			if len(resp.ToolCalls) == 0 {
+				assistantMessage := models.StoredMessageData{Role: "assistant", Content: resp.Text, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}
 				newMessage := models.Message{
 					SessionID: session_id,
 					ID:        fmt.Sprintf("%s-%d", session_id, len(messages)),
-					Data:      models.EncodeMessageData(models.StoredMessageData{Role: "assistant", Content: resp.Text}),
+					Data:      models.EncodeMessageData(assistantMessage),
 				}
 				// fmt.Println("Creating message:", newMessage)
 				if err := database.Create(&newMessage).Error; err != nil {
@@ -75,35 +70,38 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				} else {
 					fmt.Println("Message created successfully!")
 				}
-			ch <- resp.Text
-			return
+				ch <- assistantMessage
+				return
 			}
 
 			var storedToolCalls []models.StoredToolCall
 			for _, tc := range resp.ToolCalls {
 				storedToolCalls = append(storedToolCalls, models.StoredToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
 			}
+			assistantMessage := models.StoredMessageData{Role: "assistant", Content: resp.Text, ToolCalls: storedToolCalls, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}
 			assistantMsg := models.Message{
 				SessionID: session_id,
 				ID:        fmt.Sprintf("%s-%d", session_id, len(messages)),
-				Data:      models.EncodeMessageData(models.StoredMessageData{Role: "assistant", Content: resp.Text, ToolCalls: storedToolCalls, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}),
+				Data:      models.EncodeMessageData(assistantMessage),
 			}
+			ch <- assistantMessage
 			fmt.Println("Creating message:", assistantMsg)
 			if err := database.Create(&assistantMsg).Error; err != nil {
 				fmt.Println("Error creating message:", err)
 			} else {
+				// Return the whole message object in the channel which can then be used to send the message to the client
 				fmt.Println("Message created successfully!")
 			}
 
 			for _, tc := range resp.ToolCalls {
 				result, err := llm.ExecuteToolCall(tc)
-			if err != nil {
-				ch <- fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)
-				return
-			}
+				if err != nil {
+					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
+					return
+				}
 				// fmt.Println(result)
 				// fmt.Println("========================")
-				ch <- result
+				ch <- models.StoredMessageData{Role: "assistant", Content: result}
 				currentPrompt = "the result of the tool_call" + tc.Name + "is" + result
 			}
 		}

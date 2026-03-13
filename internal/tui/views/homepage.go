@@ -27,6 +27,9 @@ func LauchHomePage() {
 	}
 }
 
+type streamMessageMsg models.StoredMessageData
+type streamDoneMsg struct{}
+
 type model struct {
 	viewport         viewport.Model
 	islistSessionWin bool
@@ -38,6 +41,7 @@ type model struct {
 	senderStyle      lipgloss.Style
 	err              error
 	cache            map[int]string
+	streamCh         chan models.StoredMessageData
 	current_cache    int
 }
 
@@ -48,12 +52,11 @@ func initialModel() model {
 	ta.Focus()
 
 	ta.Prompt = "┃ "
-	ta.CharLimit = 28000
+	ta.CharLimit = 32000
 
-	ta.SetWidth(90)
+	ta.SetWidth(100)
 	ta.SetHeight(3)
 
-	// Remove cursor line styling
 	s := ta.Styles()
 	s.Focused.CursorLine = lipgloss.NewStyle()
 	ta.SetStyles(s)
@@ -75,7 +78,7 @@ func initialModel() model {
 		textarea:         ta,
 		messages:         []models.Message{},
 		viewport:         vp,
-		islistSessionWin: true,
+		islistSessionWin: false,
 		listSession:      components.LaunchSessionList(sessionItems),
 		sessions:         sessions,
 		senderStyle:      lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
@@ -137,16 +140,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetValue(curVal + "\n")
 			return m, nil
 		case "enter":
-			m.messages = append(m.messages, models.Message{
-				SessionID: m.currentSession.ID,
-				ID:        fmt.Sprintf("%s-user-%d", m.currentSession.ID, len(m.messages)),
-				Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: strings.Trim(m.textarea.Value(), "\n")}),
-			})
+			if m.currentSession.ID == "" {
+				session_id := client.CreateSession((m.textarea.Value()))
+				m.currentSession = models.Session{ID: session_id, Title: m.textarea.Value(), Directory: "."}
+			}
+			textareaValue := strings.Trim(m.textarea.Value(), "\n")
+			newMessage := client.SendMessage(m.currentSession.ID, textareaValue)
+			m.messages = append(m.messages, newMessage)
 
 			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(decodeMessages(m.messages)))
+			ch := client.ChatCompletion(m.currentSession.ID, textareaValue)
+			m.streamCh = ch
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
-			return m, nil
+			return m, waitForMessages(ch)
 		case "up", "down":
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -162,6 +169,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
 		return m, cmd
+
+	case streamMessageMsg:
+		m.messages = append(m.messages, models.Message{
+			SessionID: m.currentSession.ID,
+			ID:        fmt.Sprintf("%s-assistant-%d", m.currentSession.ID, len(m.messages)),
+			Data:      models.EncodeMessageData(models.StoredMessageData(msg)),
+		})
+		m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(decodeMessages(m.messages)))
+		m.viewport.GotoBottom()
+		return m, waitForMessages(m.streamCh)
+
+	case streamDoneMsg:
+		m.streamCh = nil
+		return m, nil
 	}
 
 	return m, nil
@@ -187,7 +208,7 @@ func decodeMessages(msgs []models.Message) string {
 	var lines []string
 	for _, msg := range msgs {
 		d := models.DecodeMessageData(msg.Data)
-		if d.Role == "" {
+		if d.Role == "" || d.Role == "error" {
 			continue
 		}
 		if d.Content != "" {
@@ -198,4 +219,14 @@ func decodeMessages(msgs []models.Message) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func waitForMessages(ch chan models.StoredMessageData) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-ch
+		if !ok {
+			return streamDoneMsg{}
+		}
+		return streamMessageMsg(msg)
+	}
 }
