@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"strings"
 )
 
 func init() {
@@ -24,7 +25,10 @@ func init() {
 			return "", nil
 		}
 
-		// strings.HasSuffix(path, "")
+		strings.HasSuffix(path, ".env")
+		if strings.HasSuffix(path, ".env") {
+			return "Error: Cannot read .env file", nil
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return "", err

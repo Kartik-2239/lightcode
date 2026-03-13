@@ -17,9 +17,6 @@ func ListSession() []models.Session {
 	body, _ := io.ReadAll(resp.Body)
 	var sessions []models.Session
 	json.Unmarshal(body, &sessions)
-	if len(sessions[0].Title) > 30 {
-		fmt.Println(sessions[0].Title[:30])
-	}
 	return sessions
 }
 

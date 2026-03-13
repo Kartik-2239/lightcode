@@ -1,14 +1,12 @@
 package agent
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/Kartik-2239/lightcode/internal/server/db"
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/server/llm"
-	"github.com/openai/openai-go/v3"
 	"gorm.io/gorm"
 )
 
@@ -41,31 +39,10 @@ func (a *Agent) Run(prompt string, session_id string) string {
 
 	currentPrompt := prompt
 
-	userMsgData, _ := json.Marshal(map[string]interface{}{
-		"id":      fmt.Sprintf("%s-user-%d", session_id, 0),
-		"object":  "chat.completion",
-		"created": 0,
-		"model":   "MiniMax-M2.5",
-		"choices": []map[string]interface{}{
-			{
-				"finish_reason": "stop",
-				"index":         0,
-				"message": map[string]interface{}{
-					"role":          "user",
-					"name":          "",
-					"audio_content": "",
-					"content": map[string]interface{}{
-						"thinking": "",
-						"response": currentPrompt,
-					},
-				},
-			},
-		},
-	})
 	userMessage := models.Message{
 		SessionID: session_id,
 		ID:        fmt.Sprintf("%s-user-%d", session_id, 0),
-		Data:      string(userMsgData),
+		Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: currentPrompt}),
 	}
 	database.Create(&userMessage)
 
@@ -75,21 +52,17 @@ func (a *Agent) Run(prompt string, session_id string) string {
 		database.Where("session_id = ?", session_id).Find(&messages)
 		var chats []llm.Chat
 		for _, message := range messages {
-			var m openai.ChatCompletion
-			json.Unmarshal([]byte(message.Data), &m)
-			chats = append(chats, llm.Chat{Role: string(m.Choices[0].Message.Role), Content: m.Choices[0].Message.Content})
+			d := models.DecodeMessageData(message.Data)
+			chats = append(chats, llm.Chat{Role: d.Role, Content: d.Content})
 		}
 		fmt.Println("Calling API...")
 		resp := llm.ApiCall(currentPrompt, chats)
-		fmt.Println("API Response:", resp.Text)
-		fmt.Println("ToolCalls:", len(resp.ToolCalls))
 
 		if len(resp.ToolCalls) == 0 {
-			data, _ := json.Marshal(resp.CompleteResponse)
 			newMessage := models.Message{
 				SessionID: session_id,
 				ID:        fmt.Sprintf("%s-%d", session_id, len(messages)),
-				Data:      string(data),
+				Data:      models.EncodeMessageData(models.StoredMessageData{Role: "assistant", Content: resp.Text}),
 			}
 			fmt.Println("Creating message:", newMessage)
 			if err := database.Create(&newMessage).Error; err != nil {
@@ -100,25 +73,27 @@ func (a *Agent) Run(prompt string, session_id string) string {
 			return resp.Text
 		}
 
+		var storedToolCalls []models.StoredToolCall
+		for _, tc := range resp.ToolCalls {
+			storedToolCalls = append(storedToolCalls, models.StoredToolCall{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments})
+		}
+		assistantMsg := models.Message{
+			SessionID: session_id,
+			ID:        fmt.Sprintf("%s-%d", session_id, len(messages)),
+			Data:      models.EncodeMessageData(models.StoredMessageData{Role: "assistant", Content: resp.Text, ToolCalls: storedToolCalls, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}),
+		}
+		fmt.Println("Creating message:", assistantMsg)
+		if err := database.Create(&assistantMsg).Error; err != nil {
+			fmt.Println("Error creating message:", err)
+		} else {
+			fmt.Println("Message created successfully!")
+		}
+
 		for _, tc := range resp.ToolCalls {
 			result, err := llm.ExecuteToolCall(tc)
 			if err != nil {
 				return fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)
 			}
-
-			data, _ := json.Marshal(resp.CompleteResponse)
-			newMessage := models.Message{
-				SessionID: session_id,
-				ID:        fmt.Sprintf("%s-%d", session_id, len(messages)),
-				Data:      string(data),
-			}
-			fmt.Println("Creating message:", newMessage)
-			if err := database.Create(&newMessage).Error; err != nil {
-				fmt.Println("Error creating message:", err)
-			} else {
-				fmt.Println("Message created successfully!")
-			}
-
 			fmt.Println(result)
 			fmt.Println("========================")
 			currentPrompt = "the result of the tool_call" + tc.Name + "is" + result

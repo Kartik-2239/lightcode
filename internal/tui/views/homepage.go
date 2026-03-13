@@ -4,7 +4,6 @@ package views
 // component library.
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/tui/client"
 	"github.com/Kartik-2239/lightcode/internal/tui/components"
-	"github.com/openai/openai-go/v3"
 	"golang.design/x/clipboard"
 )
 
@@ -52,7 +50,7 @@ func initialModel() model {
 	ta.Prompt = "┃ "
 	ta.CharLimit = 28000
 
-	ta.SetWidth(30)
+	ta.SetWidth(90)
 	ta.SetHeight(3)
 
 	// Remove cursor line styling
@@ -114,11 +112,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.SetHeight(msg.Height - m.textarea.Height())
 
 		if len(m.messages) > 0 {
-			var messages_string []string
-			for _, message := range m.messages {
-				messages_string = append(messages_string, message.Data)
-			}
-			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(strings.Join(messages_string, "\n")))
+			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(decodeMessages(m.messages)))
 		}
 		m.viewport.GotoBottom()
 	case tea.KeyPressMsg:
@@ -143,18 +137,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetValue(curVal + "\n")
 			return m, nil
 		case "enter":
-			// m.messages = append(m.messages, m.senderStyle.Render("You: ")+strings.Trim(m.textarea.Value(), "\n"))
-			// m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(strings.Join(m.messages, "\n")))
+			m.messages = append(m.messages, models.Message{
+				SessionID: m.currentSession.ID,
+				ID:        fmt.Sprintf("%s-user-%d", m.currentSession.ID, len(m.messages)),
+				Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: strings.Trim(m.textarea.Value(), "\n")}),
+			})
+			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(decodeMessages(m.messages)))
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
 			return m, nil
-
+		case "up", "down":
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
 		default:
-			if msg.String() == "up" || msg.String() == "down" {
-				var cmd tea.Cmd
-				m.viewport, cmd = m.viewport.Update(msg)
-				return m, cmd
-			}
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
 			return m, cmd
@@ -174,13 +170,7 @@ func (m model) View() tea.View {
 	if m.islistSessionWin {
 		return m.listSession.View()
 	}
-	var cur_messages []string
-	for _, message := range m.messages {
-		var message_data openai.ChatCompletion
-		json.Unmarshal([]byte(message.Data), &message_data)
-		cur_messages = append(cur_messages, message_data.Choices[0].Message.Content)
-	}
-	m.viewport.SetContent(m.currentSession.ID + strings.Join(cur_messages, "\n"))
+	m.viewport.SetContent(m.currentSession.ID + "\n" + decodeMessages(m.messages))
 	viewportView := m.viewport.View()
 	v := tea.NewView(viewportView + "\n" + m.textarea.View())
 	c := m.textarea.Cursor()
@@ -190,4 +180,21 @@ func (m model) View() tea.View {
 	v.Cursor = c
 	v.AltScreen = true
 	return v
+}
+
+func decodeMessages(msgs []models.Message) string {
+	var lines []string
+	for _, msg := range msgs {
+		d := models.DecodeMessageData(msg.Data)
+		if d.Role == "" {
+			continue
+		}
+		if d.Content != "" {
+			lines = append(lines, fmt.Sprintf("[%s] %s", strings.ToUpper(d.Role), d.Content))
+		}
+		for _, tc := range d.ToolCalls {
+			lines = append(lines, fmt.Sprintf("[TOOL] %s(%s)", tc.Name, tc.Arguments))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
