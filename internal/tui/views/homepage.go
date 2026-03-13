@@ -142,6 +142,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				ID:        fmt.Sprintf("%s-user-%d", m.currentSession.ID, len(m.messages)),
 				Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: strings.Trim(m.textarea.Value(), "\n")}),
 			})
+
 			m.viewport.SetContent(lipgloss.NewStyle().Width(m.viewport.Width()).Render(decodeMessages(m.messages)))
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
