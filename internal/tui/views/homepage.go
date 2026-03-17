@@ -44,6 +44,8 @@ type model struct {
 	currentSession    models.Session
 	messages          []models.Message
 	textarea          textarea.Model
+	pasteCounter      int
+	pastedTexts       map[int]string
 	senderStyle       lipgloss.Style
 	err               error
 	cache             map[int]string
@@ -100,6 +102,8 @@ func initialModel() model {
 
 	return model{
 		textarea:          ta,
+		pasteCounter:      0,
+		pastedTexts:       make(map[int]string),
 		messages:          []models.Message{},
 		viewport:          vp,
 		islistSessionWin:  false,
@@ -205,10 +209,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			textBytes := clipboard.Read(clipboard.FmtText)
 			pasteValue := string(textBytes)
 			if strings.Count(pasteValue, "\n") > 1 {
-
+				m.pastedTexts[m.pasteCounter] = pasteValue
+				m.pasteCounter++
+				placeholder := fmt.Sprintf("[pasted text #%d]", m.pasteCounter)
+				m.textarea.SetValue(curVal + " " + placeholder)
+			} else {
+				m.textarea.SetValue(curVal + pasteValue)
 			}
-			curVal += string(textBytes)
-			m.textarea.SetValue(curVal)
 			return m, nil
 		case "shift+enter":
 			curVal := m.textarea.Value()
@@ -225,7 +232,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sessions = append(m.sessions, m.currentSession)
 				m.listSession.Refresh(m.sessions)
 			}
-			textareaValue := strings.Trim(m.textarea.Value(), "\n")
+			textareaValue := createPrompt(strings.Trim(m.textarea.Value(), "\n"), &m)
+
 			newMessage := client.SendMessage(m.currentSession.ID, textareaValue)
 			m.messages = append(m.messages, newMessage)
 
@@ -398,6 +406,23 @@ func waitForMessages(ch chan models.StoredMessageData) tea.Cmd {
 		}
 		return streamMessageMsg(msg)
 	}
+}
+
+func createPrompt(value string, m *model) string {
+	re := regexp.MustCompile(`\[pasted text #(\d+)\]`)
+	textareaValue := re.ReplaceAllStringFunc(value, func(match string) string {
+		sub := re.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
+		}
+		var idx int
+		fmt.Sscanf(sub[1], "%d", &idx)
+		if real, ok := m.pastedTexts[idx]; ok {
+			return real
+		}
+		return match
+	})
+	return textareaValue
 }
 
 type refreshSessionsMsg struct {
