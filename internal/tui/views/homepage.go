@@ -5,7 +5,9 @@ package views
 
 import (
 	"fmt"
+	"html"
 	"os"
+	"regexp"
 	"strings"
 
 	"charm.land/bubbles/v2/cursor"
@@ -18,6 +20,7 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/tui/client"
 	"github.com/Kartik-2239/lightcode/internal/tui/components"
+	"github.com/charmbracelet/x/term"
 	"golang.design/x/clipboard"
 )
 
@@ -47,6 +50,7 @@ type model struct {
 	streamCh          chan models.StoredMessageData
 	current_cache     int
 	width             int
+	height            int
 	bashMode          bool
 }
 
@@ -71,14 +75,19 @@ func initialModel() model {
 
 	s.Focused.Base = lipgloss.NewStyle()
 
-	ta.SetWidth(100)
+	width, height := 80, 24
+	if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil {
+		width, height = w, h
+	}
+
+	ta.SetWidth(width)
 	ta.SetHeight(2)
 
 	ta.SetStyles(s)
 
 	ta.ShowLineNumbers = false
 
-	vp := viewport.New(viewport.WithWidth(100), viewport.WithHeight(10))
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-2))
 	vp.KeyMap.Left.SetEnabled(false)
 	vp.KeyMap.Right.SetEnabled(false)
 
@@ -101,6 +110,7 @@ func initialModel() model {
 		sessions:          sessions,
 		senderStyle:       lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		err:               nil,
+		width:             width,
 	}
 }
 
@@ -121,48 +131,54 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentSession = m.sessions[cur_idx]
 				m.messages = client.GetSessionData(m.currentSession.ID)
 				m.islistSessionWin = false
+				m.textarea.SetWidth(m.width)
+				m.viewport.SetWidth(m.width)
+				m.viewport.SetHeight(m.height - m.textarea.Height())
+				m.viewport.SetContent(renderMessages(m.messages, m.width))
+				m.viewport.GotoBottom()
 			}
 		}
 		return m, cmd
 	}
 	if m.islistCommandsWin {
-		var cmd tea.Cmd
-		updatedModel, cmd := m.listCommands.Update(msg)
-		m.listCommands = updatedModel.(components.ModelCmdList)
 		switch msg := msg.(type) {
 		case tea.KeyPressMsg:
 			switch msg.String() {
-			// case "left", "right":
-			// 	var cmd tea.Cmd
-			// 	m.textarea, cmd = m.textarea.Update(msg)
-			// 	return m, cmd
-			// m.islistCommandsWin = false
 			case "esc":
 				m.islistCommandsWin = false
 				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
 				return m, nil
 			case "up", "down":
-				return m, nil
+				var cmd tea.Cmd
+				updatedModel, cmd := m.listCommands.Update(msg)
+				m.listCommands = updatedModel.(components.ModelCmdList)
+				return m, cmd
 			case "enter":
 				cur_command := m.listCommands.Current()
-				m.textarea.SetValue("/" + cur_command)
 				m.islistCommandsWin = false
 				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
-				return m, nil
+				cmd := CmdHandler("/"+cur_command, &m)
+				return m, cmd
 			default:
-				m.islistCommandsWin = false
-				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
 				var cmd tea.Cmd
 				m.textarea, cmd = m.textarea.Update(msg)
+				val := m.textarea.Value()
+				if !strings.HasPrefix(val, "/") {
+					m.islistCommandsWin = false
+					m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
+				} else {
+					m.listCommands.Filter(strings.TrimPrefix(val, "/"))
+				}
 				return m, cmd
 			}
 		}
-		return m, cmd
+		return m, nil
 	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
 		m.viewport.SetWidth(msg.Width)
 		m.textarea.SetWidth(msg.Width)
 		m.viewport.SetHeight(msg.Height - m.textarea.Height())
@@ -177,7 +193,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
 		case "esc":
+			m.sessions = client.ListSession()
 			m.islistSessionWin = true
+
 		case "ctrl+v", "super+v":
 			curVal := m.textarea.Value()
 			err := clipboard.Init()
@@ -185,6 +203,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				panic(err)
 			}
 			textBytes := clipboard.Read(clipboard.FmtText)
+			pasteValue := string(textBytes)
+			if strings.Count(pasteValue, "\n") > 1 {
+
+			}
 			curVal += string(textBytes)
 			m.textarea.SetValue(curVal)
 			return m, nil
@@ -194,12 +216,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "enter":
 			if strings.HasPrefix(m.textarea.Value(), "/") {
-				CmdHandler(m.textarea.Value(), &m)
-				return m, nil
+				cmd := CmdHandler(m.textarea.Value(), &m)
+				return m, cmd
 			}
 			if m.currentSession.ID == "" {
 				session_id := client.CreateSession((m.textarea.Value()))
 				m.currentSession = models.Session{ID: session_id, Title: m.textarea.Value(), Directory: "."}
+				m.sessions = append(m.sessions, m.currentSession)
+				m.listSession.Refresh(m.sessions)
 			}
 			textareaValue := strings.Trim(m.textarea.Value(), "\n")
 			newMessage := client.SendMessage(m.currentSession.ID, textareaValue)
@@ -256,6 +280,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamDoneMsg:
 		m.streamCh = nil
 		return m, nil
+
+		// case refreshSessionsMsg:
+		// 	m.sessions = client.ListSession()
+		// 	sessionItems := make([]list.Item, len(m.sessions))
+		// 	for i, s := range m.sessions {
+		// 		sessionItems[i] = components.NewItem(s.Title, s.Directory)
+		// 	}
+		// 	m.listSession.Refresh(m.sessions) // or m.listSession.Refresh(m.sessions)
+		// 	return m, nil
 	}
 
 	return m, nil
@@ -305,10 +338,30 @@ func renderMessages(msgs []models.Message, width int) string {
 		if d.Content != "" {
 			content := d.Content
 			if d.Role == "assistant" {
+				content = html.UnescapeString(content)
+				re := regexp.MustCompile(`(?s)<think>(.*?)</think>`)
+				matches := re.FindAllString(content, -1)
+				matchedContent := strings.Join(matches, " ")
+				content = content[len(strings.Join(matches, " ")):]
+
 				if out, err := r.Render(content); err == nil {
 					content = strings.TrimSpace(out)
 				}
-				lines = append(lines, fmt.Sprintf("%s", content))
+				if out, err := r.Render(matchedContent); err == nil {
+					matchedContent = strings.TrimSpace(out)
+				}
+
+				if len(matches) == 0 {
+					lines = append(lines, fmt.Sprintf("%s", "content"))
+					continue
+				} else {
+					thinkStyle := lipgloss.NewStyle().
+						Foreground(lipgloss.BrightBlack).
+						Bold(false).
+						Width(width)
+					lines = append(lines, thinkStyle.Render(matchedContent))
+					lines = append(lines, fmt.Sprintf("%s", content))
+				}
 			}
 			if d.Role == "user" {
 				userStyle := lipgloss.NewStyle().
@@ -325,7 +378,13 @@ func renderMessages(msgs []models.Message, width int) string {
 				Bold(true).
 				Width(width).
 				Background(lipgloss.Color("2"))
-			lines = append(lines, toolStyle.Render(fmt.Sprintf("[TOOL] %s(%s)", tc.Name, tc.Arguments)))
+			arguments := ""
+			if len(tc.Arguments) > 20 {
+				arguments = tc.Arguments[:17] + "..."
+			} else {
+				arguments = tc.Arguments
+			}
+			lines = append(lines, toolStyle.Render(fmt.Sprintf("[TOOL] %s(%s)", tc.Name, arguments)))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -341,12 +400,41 @@ func waitForMessages(ch chan models.StoredMessageData) tea.Cmd {
 	}
 }
 
-func CmdHandler(cmd string, m *model) {
+type refreshSessionsMsg struct {
+}
+
+func CmdHandler(cmd string, m *model) tea.Cmd {
 	switch cmd {
 	case "/sessions":
+		m.sessions = client.ListSession()
 		m.islistSessionWin = true
 		m.textarea.Reset()
+	case "/new_session":
+		m.currentSession = models.Session{ID: "", Title: "", Directory: "."}
+		m.messages = []models.Message{}
+		m.viewport.SetContent(renderMessages(m.messages, m.width))
+		m.textarea.Reset()
+		m.viewport.GotoBottom()
+		return func() tea.Msg { return refreshSessionsMsg{} }
+
+	case "/delete_session":
+		session_id := m.currentSession.ID
+		client.DeleteSession(session_id)
+		var newSessions []models.Session
+		for _, session := range m.sessions {
+			if session.ID != session_id {
+				newSessions = append(newSessions, session)
+			}
+		}
+		m.sessions = newSessions
+		m.currentSession = models.Session{ID: "", Title: "", Directory: "."}
+		m.messages = []models.Message{}
+		m.viewport.SetContent(renderMessages(m.messages, m.width))
+		m.textarea.Reset()
+		m.viewport.GotoBottom()
+		return func() tea.Msg { return refreshSessionsMsg{} }
 	}
+	return nil
 }
 
 func BashModeHandler(cmd string) {

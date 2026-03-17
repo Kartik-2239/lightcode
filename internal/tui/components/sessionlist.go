@@ -1,9 +1,13 @@
 package components
 
 import (
+	"os"
+
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/Kartik-2239/lightcode/internal/server/db/models"
+	"github.com/charmbracelet/x/term"
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
@@ -60,8 +64,21 @@ func (m Model) Current() int {
 	return m.current
 }
 
+func (m *Model) Refresh(items []models.Session) {
+	sessionItems := make([]list.Item, len(items))
+	for i, s := range items {
+		sessionItems[i] = NewItem(s.Title, s.Directory)
+	}
+	m.list.SetItems(sessionItems)
+}
+
 func LaunchSessionList(items []list.Item) Model {
-	m := Model{list: list.New(items, list.NewDefaultDelegate(), 0, 0)}
+	width, height := 80, 24
+	if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil {
+		width, height = w, h
+	}
+	h, v := docStyle.GetFrameSize()
+	m := Model{list: list.New(items, list.NewDefaultDelegate(), width-h, height-v)}
 	m.list.Title = "Sessions"
 	return m
 }

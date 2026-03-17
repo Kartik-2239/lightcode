@@ -32,7 +32,7 @@ func newStyles(darkBG bool) styles {
 
 type item string
 
-func (i item) FilterValue() string { return "" }
+func (i item) FilterValue() string { return string(i) }
 
 type itemDelegate struct {
 	styles *styles
@@ -61,6 +61,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 type ModelCmdList struct {
 	list     list.Model
+	allItems []list.Item
 	choice   string
 	styles   styles
 	quitting bool
@@ -69,22 +70,19 @@ type ModelCmdList struct {
 
 func initialModel() ModelCmdList {
 	items := []list.Item{
-		item("Ramen"),
-		item("Tomato Soup"),
-		item("Hamburgers"),
-		item("Cheeseburgers"),
-		item("Currywurst"),
-		item("Okonomiyaki"),
-		item("Pasta"),
-		item("Fillet Mignon"),
-		item("Caviar"),
-		item("Just Wine"),
+		item("sessions"),
+		item("new_session"),
+		item("mcp"),
+		item("rename_session"),
+		item("delete_session"),
+		item("skills"),
+		item("editor"),
+		item("models"),
 	}
 
 	const defaultWidth = 20
 
 	l := list.New(items, itemDelegate{}, defaultWidth, 5)
-	l.Title = "What do you want for dinner?"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
@@ -92,9 +90,23 @@ func initialModel() ModelCmdList {
 	l.SetShowTitle(false)
 	l.SetShowFilter(false)
 
-	m := ModelCmdList{list: l}
+	m := ModelCmdList{list: l, allItems: items}
 	m.updateStyles(true) // default to dark styles.
 	return m
+}
+
+func (m *ModelCmdList) Filter(term string) {
+	if term == "" {
+		m.list.SetItems(m.allItems)
+		return
+	}
+	var filtered []list.Item
+	for _, i := range m.allItems {
+		if strings.Contains(strings.ToLower(string(i.(item))), strings.ToLower(term)) {
+			filtered = append(filtered, i)
+		}
+	}
+	m.list.SetItems(filtered)
 }
 
 func (m *ModelCmdList) updateStyles(isDark bool) {

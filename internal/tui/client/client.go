@@ -91,3 +91,14 @@ func SendMessage(session_id string, message string) models.Message {
 	json.Unmarshal(body, &newMessage)
 	return newMessage
 }
+
+func DeleteSession(session_id string) {
+	resp, err := http.Post("http://localhost:8080/delete-session?session_id="+url.QueryEscape(session_id), "application/json", nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Println(string(body))
+}

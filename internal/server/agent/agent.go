@@ -99,8 +99,6 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					return
 				}
-				// fmt.Println(result)
-				// fmt.Println("========================")
 				ch <- models.StoredMessageData{Role: "assistant", Content: result}
 				currentPrompt = "the result of the tool_call" + tc.Name + "is" + result
 			}

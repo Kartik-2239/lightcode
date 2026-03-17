@@ -1,6 +1,6 @@
 
 
-
-- We need to define a good type struct for messages, maybe add a role column in db for ease
+- copy paste multiple lines into a [ paste #1 13 lines ]
+<!-- - better tool and thinking formating -->
 - implement streaming and use server side event
-- first make the ui work then make it better
+<!-- - first make the ui work -->

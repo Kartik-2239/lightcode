@@ -18,6 +18,7 @@ func Initialise() {
 	http.HandleFunc("GET /chat-completion", chatcompletion)
 	http.HandleFunc("POST /send-message", sendMessage)
 	http.HandleFunc("POST /create-session", createSession)
+	http.HandleFunc("POST /delete-session", deleteSession)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -47,6 +48,14 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	newMessage := models.Message{SessionID: session_id, ID: fmt.Sprintf("%s-user-%d", session_id, len(messages)), Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: message})}
 	database.Create(&newMessage)
 	json.NewEncoder(w).Encode(newMessage)
+}
+
+func deleteSession(w http.ResponseWriter, r *http.Request) {
+	session_id := r.URL.Query().Get("session_id")
+	database, _ := db.Connect()
+	database.Table("messages").Where("session_id = ?", session_id).Delete(&models.Message{})
+	database.Table("sessions").Where("id = ?", session_id).Delete(&models.Session{})
+	fmt.Fprint(w, "Session deleted successfully")
 }
 
 func createSession(w http.ResponseWriter, r *http.Request) {
