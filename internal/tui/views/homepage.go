@@ -6,6 +6,7 @@ package views
 import (
 	"fmt"
 	"html"
+	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -49,8 +50,8 @@ type model struct {
 	senderStyle       lipgloss.Style
 	err               error
 	cache             map[int]string
+	cacheIndex        int
 	streamCh          chan models.StoredMessageData
-	current_cache     int
 	width             int
 	height            int
 	bashMode          bool
@@ -105,6 +106,8 @@ func initialModel() model {
 		pasteCounter:      0,
 		pastedTexts:       make(map[int]string),
 		messages:          []models.Message{},
+		cacheIndex:        0,
+		cache:             make(map[int]string),
 		viewport:          vp,
 		islistSessionWin:  false,
 		islistCommandsWin: false,
@@ -153,17 +156,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
 				return m, nil
 			case "up", "down":
-				var cmd tea.Cmd
-				updatedModel, cmd := m.listCommands.Update(msg)
-				m.listCommands = updatedModel.(components.ModelCmdList)
-				return m, cmd
+				// var cmd tea.Cmd
+				// updatedModel, cmd := m.listCommands.Update(msg)
+				// m.listCommands = updatedModel.(components.ModelCmdList)
+				if msg.String() == "up" {
+					math.Min(float64(m.cacheIndex-1), 0)
+					m.textarea.SetValue(m.cache[m.cacheIndex])
+				} else {
+					math.Min(float64(m.cacheIndex+1), float64(len(m.cache)))
+					m.textarea.SetValue(m.cache[m.cacheIndex])
+				}
+				return m, nil
 			case "enter":
+				m.cacheIndex++
 				cur_command := m.listCommands.Current()
 				m.islistCommandsWin = false
 				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
 				cmd := CmdHandler("/"+cur_command, &m)
 				return m, cmd
 			default:
+				m.cache[m.cacheIndex] = m.textarea.Value()
 				var cmd tea.Cmd
 				m.textarea, cmd = m.textarea.Update(msg)
 				val := m.textarea.Value()
