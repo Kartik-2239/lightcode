@@ -6,7 +6,6 @@ package views
 import (
 	"fmt"
 	"html"
-	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -156,17 +155,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
 				return m, nil
 			case "up", "down":
-				// var cmd tea.Cmd
-				// updatedModel, cmd := m.listCommands.Update(msg)
-				// m.listCommands = updatedModel.(components.ModelCmdList)
-				if msg.String() == "up" {
-					math.Min(float64(m.cacheIndex-1), 0)
-					m.textarea.SetValue(m.cache[m.cacheIndex])
-				} else {
-					math.Min(float64(m.cacheIndex+1), float64(len(m.cache)))
-					m.textarea.SetValue(m.cache[m.cacheIndex])
-				}
-				return m, nil
+				var cmd tea.Cmd
+				updatedModel, cmd := m.listCommands.Update(msg)
+				m.listCommands = updatedModel.(components.ModelCmdList)
+				return m, cmd
 			case "enter":
 				m.cacheIndex++
 				cur_command := m.listCommands.Current()
