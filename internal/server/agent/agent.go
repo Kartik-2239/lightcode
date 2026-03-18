@@ -41,10 +41,9 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 		}
 	}
 
-	currentPrompt := prompt
-
 	go func() {
 		defer close(ch)
+		currentPrompt := prompt
 		for i := 0; i < MaxIterations; i++ {
 			fmt.Println("Iteration:", i)
 			var messages []models.Message
@@ -56,7 +55,10 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			}
 			// fmt.Println("Calling API...")
 			resp := llm.ApiCall(currentPrompt, chats)
-
+			fmt.Println("================================================")
+			fmt.Println("Tool calls:", resp.ToolCalls)
+			fmt.Println("Number of tool calls:", len(resp.ToolCalls))
+			fmt.Println("================================================")
 			if len(resp.ToolCalls) == 0 {
 				assistantMessage := models.StoredMessageData{Role: "assistant", Content: resp.Text, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}
 				newMessage := models.Message{
@@ -92,21 +94,22 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				// Return the whole message object in the channel which can then be used to send the message to the client
 				fmt.Println("Message created successfully!")
 			}
-
+			currentPrompt = ""
 			for _, tc := range resp.ToolCalls {
+				fmt.Println("Executing tool call:", tc.Name)
 				result, err := llm.ExecuteToolCall(tc)
 				if err != nil {
+					fmt.Println("Error executing tool call:", err)
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					return
 				}
 				ch <- models.StoredMessageData{Role: "assistant", Content: result}
-				currentPrompt = "the result of the tool_call" + tc.Name + "is" + result
+				fmt.Println("Result of tool call:", result)
+
+				currentPrompt += "the result of the last tool_call" + tc.Name + "is" + result + "figure out what to do next, AND GIVE THE USER RESPONSE"
 			}
 		}
 	}()
-
-	// ch <- "Max iterations reached"
-	// close(ch)
 	return ch
 }
 

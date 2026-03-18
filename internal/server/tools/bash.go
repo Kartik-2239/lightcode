@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os/exec"
+	"strings"
 )
 
 func init() {
@@ -23,7 +24,8 @@ func init() {
 		if !ok {
 			return "", nil
 		}
-		cmd, err := exec.Command(command).Output()
+		parts := strings.Split(command, " ")
+		cmd, err := exec.Command(parts[0], parts[1:]...).Output()
 		if err != nil {
 			return "", err
 		}

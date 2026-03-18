@@ -5,7 +5,7 @@
 <!-- - Skills -->
 - MCP
 - question tool
-- grep tool
+<!-- - grep tool -->
 - implement streaming
 <!-- - arrow key should bring previous text // scrapped -->
 <!-- - first make the ui work -->
