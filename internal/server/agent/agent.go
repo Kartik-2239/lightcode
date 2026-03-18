@@ -109,3 +109,11 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 	// close(ch)
 	return ch
 }
+
+func (a *Agent) TextSkill(skill_name string) (string, error) {
+	result, err := llm.ExecuteToolCall(llm.ToolCall{Name: "skill", Arguments: fmt.Sprintf("{\"skill_name\": \"%s\"}", skill_name)})
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kartik-2239/lightcode/internal/server/prompt"
 	"github.com/Kartik-2239/lightcode/internal/server/tools"
 	"github.com/openai/openai-go/v3"
 
@@ -27,13 +28,14 @@ type Chat struct {
 	Content string
 }
 
-func ApiCall(prompt string, chats []Chat) Response {
+func ApiCall(input string, chats []Chat) Response {
 	godotenv.Load()
 	var toolCalls []ToolCall
 	ctx := context.Background()
 	client := openai.NewClient()
 
 	var messages []openai.ChatCompletionMessageParamUnion
+	messages = append(messages, openai.SystemMessage("You are a helpful assistant that can use the following skills to help the user: "+prompt.AvailableSkills()))
 
 	for _, c := range chats {
 		if c.Role == "user" {
@@ -42,7 +44,7 @@ func ApiCall(prompt string, chats []Chat) Response {
 			messages = append(messages, openai.AssistantMessage(c.Content))
 		}
 	}
-	messages = append(messages, openai.UserMessage(prompt))
+	messages = append(messages, openai.UserMessage(input))
 
 	resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
@@ -52,8 +54,6 @@ func ApiCall(prompt string, chats []Chat) Response {
 	if err != nil {
 		fmt.Println("Error", err)
 	}
-	// fmt.Println("===================================")
-	// fmt.Println("Response", resp)
 
 	for _, item := range resp.Choices[0].Message.ToolCalls {
 		toolCalls = append(toolCalls, ToolCall{

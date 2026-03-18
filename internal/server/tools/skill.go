@@ -1,14 +1,18 @@
 package tools
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 func init() {
+	godotenv.Load()
 	Register("skill", ToolDef{
 		Name:        "skill",
 		Description: "Load a skill from the available skills using skill name",
@@ -27,32 +31,28 @@ func init() {
 		if !ok {
 			return "", nil
 		}
-		skillPath := os.Getenv("SKILL_PATH")
+		skillPath := "/Users/kartikkannan/Desktop/lightcode/skills"
+		fmt.Println("Skill path", skillPath)
 		skillFilePath := filepath.Join(skillPath, skillName, "SKILL.md")
+		fmt.Println("Skill file path", skillFilePath)
 		data, err := os.ReadFile(skillFilePath)
 		if err != nil {
-			return "", err
+			return "Skill not found", err
 		}
-		cmd := exec.Command("ls", skillPath)
+		skill_files := []string{}
+		cmd := exec.Command("ls", skillPath+"/"+skillName)
 		output, err := cmd.Output()
 		if err != nil {
 			return "", err
 		}
-		files := strings.Split(string(output), "\n")
-		skill_files := []string{}
-		if len(files) > 0 {
-			for _, file := range files {
-				cmd := exec.Command("ls", skillPath+"/"+file)
-				output, err := cmd.Output()
-				if err != nil {
-					return "", err
-				}
-				skill_files = append(skill_files, string(output))
+		for s := range strings.SplitSeq(string(output), "\n") {
+			if s != "" {
+				skill_files = append(skill_files, skillPath+"/"+skillName+"/"+s)
 			}
 		}
 		re := regexp.MustCompile(`(?s)---.*?---`)
 		skill := re.ReplaceAllString(string(data), "")
-		skill_file_names := "<skill_files>" + strings.Join(skill_files, "\n") + "</skill_files>"
+		skill_file_names := "\n<skill_files>\n" + strings.Join(skill_files, "\n") + "\n</skill_files>"
 		skill = "<skill_content name=\"" + skillName + "\">" + skill + skill_file_names + "</skill_content>"
 		return skill, nil
 	})

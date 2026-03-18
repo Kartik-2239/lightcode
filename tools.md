@@ -16,7 +16,7 @@ This document describes all the tools available to the AI assistant and their fu
 <!-- | `websearch` | Search the web using Exa AI | -->
 | `question` | Ask the user questions during execution |
 | `todowrite` | Create and manage structured task lists |
-| `skill` | Load specialized domain-specific skills |
+<!-- | `skill` | Load specialized domain-specific skills | -->
 
 ---
 
