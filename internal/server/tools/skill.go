@@ -3,7 +3,6 @@ package tools
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,21 +38,27 @@ func init() {
 		if err != nil {
 			return "Skill not found", err
 		}
-		skill_files := []string{}
-		cmd := exec.Command("ls", skillPath+"/"+skillName)
-		output, err := cmd.Output()
+		skillDir := filepath.Join(skillPath, skillName)
+		entries, err := os.ReadDir(skillDir)
 		if err != nil {
 			return "", err
 		}
-		for s := range strings.SplitSeq(string(output), "\n") {
-			if s != "" {
-				skill_files = append(skill_files, skillPath+"/"+skillName+"/"+s)
+		skill_files := []string{}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
 			}
+			filePath := filepath.Join(skillDir, entry.Name())
+			fileData, err := os.ReadFile(filePath)
+			if err != nil {
+				continue
+			}
+			skill_files = append(skill_files, "<file path=\""+filePath+"\">\n"+string(fileData)+"\n</file>")
 		}
 		re := regexp.MustCompile(`(?s)---.*?---`)
 		skill := re.ReplaceAllString(string(data), "")
-		skill_file_names := "\n<skill_files>\n" + strings.Join(skill_files, "\n") + "\n</skill_files>"
-		skill = "<skill_content name=\"" + skillName + "\">" + skill + skill_file_names + "</skill_content>"
+		skillFilesBlock := "\n<skill_files>\n" + strings.Join(skill_files, "\n") + "\n</skill_files>"
+		skill = "<skill_content name=\"" + skillName + "\">" + skill + skillFilesBlock + "</skill_content>"
 		return skill, nil
 	})
 }
