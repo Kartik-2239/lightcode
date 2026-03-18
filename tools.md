@@ -6,17 +6,15 @@ This document describes all the tools available to the AI assistant and their fu
 
 | Tool | Basic Functionality |
 |------|---------------------|
-| `read` | Read files or directories from the local filesystem |
-| `write` | Write or overwrite files on the local filesystem |
-| `edit` | Perform exact string replacements in existing files |
-| `glob` | Fast file pattern matching (e.g., `**/*.js`) |
+<!-- | `read` | Read files or directories from the local filesystem | -->
+<!-- | `write` | Write or overwrite files on the local filesystem | -->
+<!-- | `edit` | Perform exact string replacements in existing files | -->
+<!-- | `glob` | Fast file pattern matching (e.g., `**/*.js`) | -->
 | `grep` | Fast content search using regular expressions |
-| `bash` | Execute bash commands in a persistent shell session |
-| `webfetch` | Fetch and convert web content from URLs |
-| `websearch` | Search the web using Exa AI |
-| `codesearch` | Search programming context using Exa Code API |
+<!-- | `bash` | Execute bash commands in a persistent shell session | -->
+<!-- | `webfetch` | Fetch and convert web content from URLs | -->
+<!-- | `websearch` | Search the web using Exa AI | -->
 | `question` | Ask the user questions during execution |
-| `task` | Launch sub-agents for complex, multistep tasks |
 | `todowrite` | Create and manage structured task lists |
 | `skill` | Load specialized domain-specific skills |
 

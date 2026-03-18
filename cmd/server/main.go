@@ -1,9 +1,6 @@
 package main
 
 import (
-	"math/rand"
-	"strings"
-
 	"github.com/Kartik-2239/lightcode/internal/server"
 )
 
@@ -17,12 +14,12 @@ func main() {
 	// }
 }
 
-func randomSessionID() string {
-	var chars = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890-_"
-	length := 10
-	var result strings.Builder
-	for range length {
-		result.WriteString(string(chars[rand.Intn(len(chars))]))
-	}
-	return result.String()
-}
+// func randomSessionID() string {
+// 	var chars = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890-_"
+// 	length := 10
+// 	var result strings.Builder
+// 	for range length {
+// 		result.WriteString(string(chars[rand.Intn(len(chars))]))
+// 	}
+// 	return result.String()
+// }
