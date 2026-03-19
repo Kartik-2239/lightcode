@@ -91,7 +91,6 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			if err := database.Create(&assistantMsg).Error; err != nil {
 				fmt.Println("Error creating message:", err)
 			} else {
-				// Return the whole message object in the channel which can then be used to send the message to the client
 				fmt.Println("Message created successfully!")
 			}
 			currentPrompt = ""
@@ -103,7 +102,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					return
 				}
-				ch <- models.StoredMessageData{Role: "assistant", Content: result}
+				ch <- models.StoredMessageData{Role: "tool_call", Content: result}
 				fmt.Println("Result of tool call:", result)
 
 				currentPrompt += "the result of the last tool_call" + tc.Name + "is" + result + "figure out what to do next, AND GIVE THE USER RESPONSE"

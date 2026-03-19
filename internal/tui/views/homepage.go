@@ -364,7 +364,7 @@ func renderMessages(msgs []models.Message, width int) string {
 				}
 
 				if len(matches) == 0 {
-					lines = append(lines, fmt.Sprintf("%s", "content"))
+					lines = append(lines, fmt.Sprintf("%s", content))
 					continue
 				} else {
 					thinkStyle := lipgloss.NewStyle().
@@ -374,6 +374,14 @@ func renderMessages(msgs []models.Message, width int) string {
 					lines = append(lines, thinkStyle.Render(matchedContent))
 					lines = append(lines, fmt.Sprintf("%s", content))
 				}
+			}
+			if d.Role == "tool_call" {
+				toolStyle := lipgloss.NewStyle().
+					Foreground(lipgloss.Color("20")).
+					Bold(true).
+					Width(width).
+					Background(lipgloss.Color("2"))
+				lines = append(lines, toolStyle.Render(fmt.Sprintf("[TOOL_Result] (%s)", d.Content)))
 			}
 			if d.Role == "user" {
 				userStyle := lipgloss.NewStyle().
