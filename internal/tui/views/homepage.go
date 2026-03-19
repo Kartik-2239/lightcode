@@ -293,14 +293,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.streamCh = nil
 		return m, nil
 
-		// case refreshSessionsMsg:
-		// 	m.sessions = client.ListSession()
-		// 	sessionItems := make([]list.Item, len(m.sessions))
-		// 	for i, s := range m.sessions {
-		// 		sessionItems[i] = components.NewItem(s.Title, s.Directory)
-		// 	}
-		// 	m.listSession.Refresh(m.sessions) // or m.listSession.Refresh(m.sessions)
-		// 	return m, nil
 	}
 
 	return m, nil
