@@ -28,10 +28,10 @@ type Chat struct {
 	Content string
 }
 
-func ApiCall(input string, chats []Chat) Response {
+func ApiCall(ctx context.Context, input string, chats []Chat) Response {
 	godotenv.Load()
 	var toolCalls []ToolCall
-	ctx := context.Background()
+	// ctx := context.Background()
 	client := openai.NewClient()
 
 	var messages []openai.ChatCompletionMessageParamUnion
@@ -53,6 +53,7 @@ func ApiCall(input string, chats []Chat) Response {
 	})
 	if err != nil {
 		fmt.Println("Error", err)
+		return Response{}
 	}
 
 	for _, item := range resp.Choices[0].Message.ToolCalls {

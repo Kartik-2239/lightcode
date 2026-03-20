@@ -45,6 +45,12 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 		defer close(ch)
 		currentPrompt := prompt
 		for i := 0; i < MaxIterations; i++ {
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			fmt.Println("Iteration:", i)
 			var messages []models.Message
 			database.Where("session_id = ?", session_id).Find(&messages)
@@ -54,12 +60,22 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				chats = append(chats, llm.Chat{Role: d.Role, Content: d.Content})
 			}
 			// fmt.Println("Calling API...")
-			resp := llm.ApiCall(currentPrompt, chats)
+			resp := llm.ApiCall(ctx, currentPrompt, chats)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			fmt.Println("================================================")
 			fmt.Println("Tool calls:", resp.ToolCalls)
 			fmt.Println("Number of tool calls:", len(resp.ToolCalls))
 			fmt.Println("================================================")
 			if len(resp.ToolCalls) == 0 {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 				assistantMessage := models.StoredMessageData{Role: "assistant", Content: resp.Text, Usage: &models.StoredUsage{PromptTokens: resp.CompleteResponse.Usage.PromptTokens, CompletionTokens: resp.CompleteResponse.Usage.CompletionTokens, TotalTokens: resp.CompleteResponse.Usage.TotalTokens}}
 				newMessage := models.Message{
 					SessionID: session_id,

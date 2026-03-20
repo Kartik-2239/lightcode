@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,11 +51,17 @@ func CreateSession(prompt string) string {
 	return strings.TrimSpace(string(body))
 }
 
-func ChatCompletion(session_id string, prompt string) chan models.StoredMessageData {
+func ChatCompletion(ctx context.Context, session_id string, prompt string) chan models.StoredMessageData {
 	ch := make(chan models.StoredMessageData)
 	go func() {
 		defer close(ch)
-		resp, err := http.Get("http://localhost:8080/chat-completion?session_id=" + url.QueryEscape(session_id) + "&prompt=" + url.QueryEscape(prompt))
+		url := "http://localhost:8080/chat-completion?session_id=" + url.QueryEscape(session_id) + "&prompt=" + url.QueryEscape(prompt)
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			fmt.Println(err.Error())
 			return

@@ -4,6 +4,7 @@ package views
 // component library.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -55,6 +56,8 @@ type model struct {
 	width             int
 	height            int
 	bashMode          bool
+	streamch          chan models.StoredMessageData
+	cancelStream      context.CancelFunc
 }
 
 func initialModel() model {
@@ -202,8 +205,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
 		case "esc":
-			m.sessions = client.ListSession()
-			m.islistSessionWin = true
+			if m.streamCh != nil && m.cancelStream != nil {
+				m.cancelStream()
+				m.cancelStream = nil
+				m.streamCh = nil
+				m.messages = append(m.messages, models.Message{
+					SessionID: m.currentSession.ID,
+					ID:        fmt.Sprintf("%s-system-%d", m.currentSession.ID, len(m.messages)),
+					Data: models.EncodeMessageData(models.StoredMessageData{
+						Role: "assistant", Content: "*Generation stopped.*",
+					}),
+				})
+				m.viewport.SetContent(renderMessages(m.messages, m.width))
+				m.viewport.GotoBottom()
+				return m, nil
+			}
+			// m.sessions = client.ListSession()
+			// m.islistSessionWin = true
 
 		case "ctrl+v", "super+v":
 			curVal := m.textarea.Value()
@@ -243,7 +261,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messages = append(m.messages, newMessage)
 
 			m.viewport.SetContent(renderMessages(m.messages, m.width))
-			ch := client.ChatCompletion(m.currentSession.ID, textareaValue)
+			ctx, cancel := context.WithCancel(context.Background())
+			ch := client.ChatCompletion(ctx, m.currentSession.ID, textareaValue)
+			m.cancelStream = cancel
 			m.streamCh = ch
 			m.textarea.SetValue("")
 			m.textarea.Reset()
