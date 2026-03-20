@@ -102,10 +102,18 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					return
 				}
-				ch <- models.StoredMessageData{Role: "tool_call", Content: result}
+				ch <- models.StoredMessageData{Role: "tool_call", Content: result, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}
+				toolMsg := models.Message{
+					SessionID: session_id,
+					ID:        fmt.Sprintf("%s-%d", session_id, len(messages)+1+i), // Simplified ID generation
+					Data:      models.EncodeMessageData(models.StoredMessageData{Role: "tool_call", Content: result, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}),
+				}
+				database.Create(&toolMsg)
 				fmt.Println("Result of tool call:", result)
-
-				currentPrompt += "the result of the last tool_call" + tc.Name + "is" + result + "figure out what to do next, AND GIVE THE USER RESPONSE"
+				if len(tc.Arguments) > 20 {
+					tc.Arguments = tc.Arguments[:20] + "..."
+				}
+				currentPrompt += "the result of tool_call:" + tc.Name + "(" + tc.Arguments + ")" + "is" + result + "figure out what to do next."
 			}
 		}
 	}()
