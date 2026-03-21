@@ -9,16 +9,6 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
-func formatSize(size int64) string {
-	if size < 1024 {
-		return "<1KB"
-	}
-	if size < 1024*1024 {
-		return "<1MB"
-	}
-	return "<10MB"
-}
-
 type ToolFunc func(args map[string]any) (string, error)
 
 type ToolDef struct {

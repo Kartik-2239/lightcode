@@ -116,7 +116,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				if err != nil {
 					fmt.Println("Error executing tool call:", err)
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
-					return
+					continue
 				}
 				ch <- models.StoredMessageData{Role: "tool_call", Content: result, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}
 				toolMsg := models.Message{

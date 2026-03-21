@@ -34,8 +34,7 @@ func init() {
 			if e.IsDir() {
 				result += e.Name() + "/\n"
 			} else {
-				info, _ := e.Info()
-				result += e.Name() + " (" + formatSize(info.Size()) + ")\n"
+				result += e.Name() + "\n"
 			}
 		}
 		return result, nil
