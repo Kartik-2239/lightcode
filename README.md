@@ -2,6 +2,8 @@
 
 Lightcode is a **coding agent** written in Go. It supports all the llm providers that support OpenAi Api format.
 
+![Lightcode demo](assets/lightcode.gif)
+
 ## Requirements
 
 - [Go](https://go.dev/dl/) **1.25+**
