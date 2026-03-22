@@ -8,13 +8,25 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
+	"github.com/joho/godotenv"
 )
 
+var baseUrl string
+
+func init() {
+	godotenv.Load()
+	baseUrl = os.Getenv("API_URL")
+	if baseUrl == "" {
+		baseUrl = "http://localhost:8080"
+	}
+}
+
 func ListSession() []models.Session {
-	resp, err := http.Get("http://localhost:8080/list-sessions")
+	resp, err := http.Get(baseUrl + "/list-sessions")
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -27,7 +39,7 @@ func ListSession() []models.Session {
 }
 
 func GetSessionData(session_id string) []models.Message {
-	resp, err := http.Get("http://localhost:8080/get-session-data?session_id=" + url.QueryEscape(session_id))
+	resp, err := http.Get(baseUrl + "/get-session-data?session_id=" + url.QueryEscape(session_id))
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -40,7 +52,7 @@ func GetSessionData(session_id string) []models.Message {
 }
 
 func CreateSession(prompt string) string {
-	resp, err := http.Post("http://localhost:8080/create-session?prompt="+url.QueryEscape(prompt), "application/json", nil)
+	resp, err := http.Post(baseUrl+"/create-session?prompt="+url.QueryEscape(prompt), "application/json", nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return ""
@@ -55,7 +67,7 @@ func ChatCompletion(ctx context.Context, session_id string, prompt string) chan 
 	ch := make(chan models.StoredMessageData)
 	go func() {
 		defer close(ch)
-		url := "http://localhost:8080/chat-completion?session_id=" + url.QueryEscape(session_id) + "&prompt=" + url.QueryEscape(prompt)
+		url := baseUrl + "/chat-completion?session_id=" + url.QueryEscape(session_id) + "&prompt=" + url.QueryEscape(prompt)
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -87,7 +99,7 @@ func ChatCompletion(ctx context.Context, session_id string, prompt string) chan 
 }
 
 func SendMessage(session_id string, message string) models.Message {
-	resp, err := http.Post("http://localhost:8080/send-message?session_id="+url.QueryEscape(session_id)+"&message="+url.QueryEscape(message), "application/json", nil)
+	resp, err := http.Post(baseUrl+"/send-message?session_id="+url.QueryEscape(session_id)+"&message="+url.QueryEscape(message), "application/json", nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return models.Message{}
@@ -100,7 +112,7 @@ func SendMessage(session_id string, message string) models.Message {
 }
 
 func DeleteSession(session_id string) {
-	resp, err := http.Post("http://localhost:8080/delete-session?session_id="+url.QueryEscape(session_id), "application/json", nil)
+	resp, err := http.Post(baseUrl+"/delete-session?session_id="+url.QueryEscape(session_id), "application/json", nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
