@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Grep recursively searches for a pattern in files matching the given include filter
 func Grep(args map[string]interface{}) (string, error) {
 	pattern, ok := args["pattern"].(string)
 	if !ok {
@@ -21,41 +20,59 @@ func Grep(args map[string]interface{}) (string, error) {
 
 	include, ok := args["include"].(string)
 	if !ok {
-		include = "*.go"
+		return "ERROR: include is required and must be a string", fmt.Errorf("include is required and must be a string")
 	}
 
-	// Validate that path exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return "", fmt.Errorf("path does not exist: %s", path)
+		return "ERROR: path does not exist: " + path, fmt.Errorf("path does not exist: %s", path)
 	}
 
-	// Use -l flag to only output filenames, avoiding exit code issues when matches are found
 	cmd := exec.Command("grep", "-r", "-l", "--include="+include, pattern, path)
 
-	// Capture both stdout and stderr
 	output, err := cmd.CombinedOutput()
 
-	// grep returns exit code 1 when no matches are found, which is not an error
-	// grep returns exit code 2 when there's an error (e.g., invalid pattern)
 	if err != nil {
-		// Check if it's just "no matches found" (exit code 1)
 		if exitError, ok := err.(*exec.ExitError); ok {
 			if exitError.ExitCode() == 1 {
-				// No matches found - this is not an error
 				return "No matches found", nil
 			}
-			// Exit code 2 - actual error
-			return "", fmt.Errorf("grep error: %s", string(output))
+			return "ERROR: grep error: " + string(output), fmt.Errorf("grep error: %s", string(output))
 		}
-		// Some other error occurred
-		return "", fmt.Errorf("failed to execute grep: %w", err)
+		return "ERROR: failed to execute grep: " + err.Error(), fmt.Errorf("failed to execute grep: %w", err)
 	}
 
-	// grep found matches (exit code 0)
 	result := strings.TrimSpace(string(output))
 	if result == "" {
 		return "No matches found", nil
 	}
 
 	return result, nil
+}
+
+func init() {
+	Register("grep", ToolDef{
+		Name:        "grep",
+		Description: "Search for a pattern in a file or directory",
+		Params: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"pattern": map[string]string{
+					"type":        "string",
+					"description": "The pattern to search for",
+				},
+				"path": map[string]string{
+					"type":        "string",
+					"description": "The path to search in",
+				},
+				"include": map[string]string{
+					"type":        "string",
+					"description": "The file extension to include",
+					"default":     "*.go",
+				},
+			},
+			"required": []string{"pattern", "path"},
+		},
+	}, func(args map[string]any) (string, error) {
+		return Grep(args)
+	})
 }

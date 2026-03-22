@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Kartik-2239/lightcode/internal/server/db"
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
@@ -43,7 +44,17 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 
 	go func() {
 		defer close(ch)
-		currentPrompt := prompt
+		var prior []models.Message
+		database.Where("session_id = ?", session_id).Find(&prior)
+		userTurn := models.Message{
+			SessionID: session_id,
+			ID:        fmt.Sprintf("%s-%d", session_id, len(prior)),
+			Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: prompt}),
+		}
+		if err := database.Create(&userTurn).Error; err != nil {
+			fmt.Println("Error saving user message:", err)
+		}
+
 		for i := 0; i < MaxIterations; i++ {
 
 			select {
@@ -54,13 +65,35 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			fmt.Println("Iteration:", i)
 			var messages []models.Message
 			database.Where("session_id = ?", session_id).Find(&messages)
-			var chats []llm.Chat
+			chats := make([]llm.Chat, 0, len(messages))
 			for _, message := range messages {
 				d := models.DecodeMessageData(message.Data)
-				chats = append(chats, llm.Chat{Role: d.Role, Content: d.Content})
+				switch d.Role {
+				case "tool_call":
+					name, id := "tool", ""
+					if len(d.ToolCalls) > 0 {
+						name = d.ToolCalls[0].Name
+						id = d.ToolCalls[0].ID
+					}
+					chats = append(chats, llm.Chat{
+						Role:    "user",
+						Content: fmt.Sprintf("Tool %q (call_id=%s) output:\n%s", name, id, d.Content),
+					})
+				case "assistant":
+					content := d.Content
+					if content == "" && len(d.ToolCalls) > 0 {
+						names := make([]string, len(d.ToolCalls))
+						for j, tc := range d.ToolCalls {
+							names[j] = tc.Name
+						}
+						content = "(Calling tools: " + strings.Join(names, ", ") + ")"
+					}
+					chats = append(chats, llm.Chat{Role: "assistant", Content: content})
+				default:
+					chats = append(chats, llm.Chat{Role: d.Role, Content: d.Content})
+				}
 			}
-			// fmt.Println("Calling API...")
-			resp := llm.ApiCall(ctx, currentPrompt, chats)
+			resp := llm.ApiCall(ctx, "", chats)
 			select {
 			case <-ctx.Done():
 				return
@@ -109,7 +142,6 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			} else {
 				fmt.Println("Message created successfully!")
 			}
-			currentPrompt = ""
 			for _, tc := range resp.ToolCalls {
 				fmt.Println("Executing tool call:", tc.Name)
 				result, err := llm.ExecuteToolCall(tc)
@@ -126,10 +158,6 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				}
 				database.Create(&toolMsg)
 				fmt.Println("Result of tool call:", result)
-				if len(tc.Arguments) > 20 {
-					tc.Arguments = tc.Arguments[:20] + "..."
-				}
-				currentPrompt += "the result of tool_call:" + tc.Name + "(" + tc.Arguments + ")" + "is" + result + "figure out what to do next."
 			}
 		}
 	}()

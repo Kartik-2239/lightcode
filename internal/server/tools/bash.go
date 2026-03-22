@@ -22,12 +22,12 @@ func init() {
 	}, func(args map[string]any) (string, error) {
 		command, ok := args["command"].(string)
 		if !ok {
-			return "", nil
+			return "Error: command is required and must be a string", nil
 		}
 		parts := strings.Split(command, " ")
 		cmd, err := exec.Command(parts[0], parts[1:]...).Output()
 		if err != nil {
-			return "", err
+			return "Error: " + err.Error(), err
 		}
 		return string(string(cmd)), nil
 	})

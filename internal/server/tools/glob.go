@@ -34,7 +34,7 @@ func init() {
 		}
 		cmd, err := exec.Command("find", path, "-name", fmt.Sprintf("%s", pattern)).Output()
 		if err != nil {
-			return "", err
+			return "No matches found", err
 		}
 		return string(cmd), nil
 	})

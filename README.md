@@ -1,10 +1,10 @@
--[x] copy paste multiple lines into a [ paste #1 13 lines ]
--[x] better tool and thinking formating
--[x] Skills
--[x] grep tool
--[x] arrow key should bring previous text // scrapped
--[x] first make the ui work
--[x] UI upgrades
--[] MCP
--[] todo tool
--[] question tool # in line 105 of agent.go. add a new role like question when the tc.name = question_tool and handle that in the tui/client.go
+- [x] copy paste multiple lines into a [ paste #1 13 lines ]
+- [x] better tool and thinking formating
+- [x] Skills
+- [x] grep tool
+- [x] arrow key should bring previous text // scrapped
+- [x] first make the ui work
+- [x] UI upgrades
+- [ ] MCP
+- [ ] todo tool
+- [ ] question tool # in line 105 of agent.go. add a new role like question when the tc.name = question_tool and handle that in the tui/client.go

@@ -8,7 +8,7 @@ import (
 func init() {
 	Register("read_file", ToolDef{
 		Name:        "read_file",
-		Description: "Read the contents of a file from the filesystem",
+		Description: "RETURNS THE CONTENTS OF A FILE FROM THE FILESYSTEM, don't keep calling it again and again like a fucking idiot",
 		Params: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -24,10 +24,14 @@ func init() {
 		if !ok {
 			return "", nil
 		}
-
-		strings.HasSuffix(path, ".env")
-		if strings.HasSuffix(path, ".env") {
-			return "Error: Cannot read .env file", nil
+		gitignore, err := os.ReadFile(".gitignore")
+		if err == nil {
+			files_to_ignore := strings.Split(string(gitignore), "\n")
+			for _, file := range files_to_ignore {
+				if strings.HasSuffix(path, file) {
+					return "Error: File is in .gitignore", nil
+				}
+			}
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
