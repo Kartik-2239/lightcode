@@ -71,10 +71,10 @@ func ApiCall(ctx context.Context, input string, chats []Chat) Response {
 	}
 }
 
-func ExecuteToolCall(tc ToolCall) (string, error) {
+func ExecuteToolCall(tc ToolCall, workingDirectory string) (string, error) {
 	args, err := tools.ParseArgs(tc.Arguments)
 	if err != nil {
 		return "", err
 	}
-	return tools.Execute(tc.Name, args)
+	return tools.Execute(tc.Name, tools.ToolContext{WorkingDirectory: workingDirectory}, args)
 }

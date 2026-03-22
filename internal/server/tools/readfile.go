@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -19,12 +20,15 @@ func init() {
 			},
 			"required": []string{"path"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		path, ok := args["path"].(string)
 		if !ok {
 			return "", nil
 		}
-		gitignore, err := os.ReadFile(".gitignore")
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.WorkingDirectory, path)
+		}
+		gitignore, err := os.ReadFile(filepath.Join(ctx.WorkingDirectory, ".gitignore"))
 		if err == nil {
 			files_to_ignore := strings.Split(string(gitignore), "\n")
 			for _, file := range files_to_ignore {

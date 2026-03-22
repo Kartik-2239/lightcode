@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 )
 
 func init() {
@@ -23,7 +24,7 @@ func init() {
 			},
 			"required": []string{"pattern", "path"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		pattern, ok := args["pattern"].(string)
 		if !ok {
 			return "", nil
@@ -32,10 +33,15 @@ func init() {
 		if !ok {
 			return "", nil
 		}
-		cmd, err := exec.Command("find", path, "-name", fmt.Sprintf("%s", pattern)).Output()
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.WorkingDirectory, path)
+		}
+		cmd := exec.Command("find", path, "-name", fmt.Sprintf("%s", pattern))
+		cmd.Dir = ctx.WorkingDirectory
+		output, err := cmd.Output()
 		if err != nil {
 			return "No matches found", err
 		}
-		return string(cmd), nil
+		return string(output), nil
 	})
 }

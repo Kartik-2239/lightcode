@@ -144,7 +144,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			}
 			for _, tc := range resp.ToolCalls {
 				fmt.Println("Executing tool call:", tc.Name)
-				result, err := llm.ExecuteToolCall(tc)
+				result, err := llm.ExecuteToolCall(tc, session.Directory)
 				if err != nil {
 					fmt.Println("Error executing tool call:", err)
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
@@ -164,10 +164,10 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 	return ch
 }
 
-func (a *Agent) TextSkill(skill_name string) (string, error) {
-	result, err := llm.ExecuteToolCall(llm.ToolCall{Name: "skill", Arguments: fmt.Sprintf("{\"skill_name\": \"%s\"}", skill_name)})
-	if err != nil {
-		return "", err
-	}
-	return result, nil
-}
+// func (a *Agent) TextSkill(skill_name string) (string, error) {
+// 	result, err := llm.ExecuteToolCall(llm.ToolCall{Name: "skill", Arguments: fmt.Sprintf("{\"skill_name\": \"%s\"}", skill_name)})
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return result, nil
+// }

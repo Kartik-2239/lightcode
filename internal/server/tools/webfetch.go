@@ -20,7 +20,7 @@ func init() {
 			},
 			"required": []string{"url"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		url, ok := args["url"].(string)
 		if !ok {
 			return "", nil

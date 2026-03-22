@@ -23,10 +23,13 @@ func init() {
 			},
 			"required": []string{"path", "content"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		path, ok := args["path"].(string)
 		if !ok {
 			return "", nil
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.WorkingDirectory, path)
 		}
 		content, ok := args["content"].(string)
 		if !ok {

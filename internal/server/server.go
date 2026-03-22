@@ -60,9 +60,10 @@ func deleteSession(w http.ResponseWriter, r *http.Request) {
 
 func createSession(w http.ResponseWriter, r *http.Request) {
 	prompt := r.URL.Query().Get("prompt")
+	workingDirectory := r.URL.Query().Get("working_directory")
 	database, _ := db.Connect()
 	session_id := randomSessionID()
-	session := models.Session{ID: session_id, Title: prompt, Directory: "."}
+	session := models.Session{ID: session_id, Title: prompt, Directory: workingDirectory}
 	database.Create(&session)
 	fmt.Fprint(w, session_id)
 }

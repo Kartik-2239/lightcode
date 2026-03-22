@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
 )
 
 func init() {
@@ -18,12 +19,14 @@ func init() {
 			},
 			"required": []string{"path"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		path, ok := args["path"].(string)
 		if !ok {
 			return "", nil
 		}
-
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.WorkingDirectory, path)
+		}
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return "", err

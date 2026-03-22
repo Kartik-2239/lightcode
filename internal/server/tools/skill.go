@@ -25,12 +25,12 @@ func init() {
 			},
 			"required": []string{"skillName"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		skillName, ok := args["skillName"].(string)
 		if !ok {
 			return "", nil
 		}
-		skillPath := "/Users/kartikkannan/Desktop/lightcode/skills"
+		skillPath := os.Getenv("SKILL_PATH")
 		fmt.Println("Skill path", skillPath)
 		skillFilePath := filepath.Join(skillPath, skillName, "SKILL.md")
 		fmt.Println("Skill file path", skillFilePath)

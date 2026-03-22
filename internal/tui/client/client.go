@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
@@ -52,7 +53,12 @@ func GetSessionData(session_id string) []models.Message {
 }
 
 func CreateSession(prompt string) string {
-	resp, err := http.Post(baseUrl+"/create-session?prompt="+url.QueryEscape(prompt), "application/json", nil)
+	workingDirectory, err := exec.Command("pwd").Output()
+	if err != nil {
+		fmt.Println(err.Error())
+		return ""
+	}
+	resp, err := http.Post(baseUrl+"/create-session?prompt="+url.QueryEscape(prompt)+"&working_directory="+url.QueryEscape(string(workingDirectory)), "application/json", nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return ""

@@ -19,16 +19,18 @@ func init() {
 			},
 			"required": []string{"command"},
 		},
-	}, func(args map[string]any) (string, error) {
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
 		command, ok := args["command"].(string)
 		if !ok {
 			return "Error: command is required and must be a string", nil
 		}
 		parts := strings.Split(command, " ")
-		cmd, err := exec.Command(parts[0], parts[1:]...).Output()
+		cmd := exec.Command(parts[0], parts[1:]...)
+		cmd.Dir = ctx.WorkingDirectory
+		output, err := cmd.Output()
 		if err != nil {
 			return "Error: " + err.Error(), err
 		}
-		return string(string(cmd)), nil
+		return string(output), nil
 	})
 }

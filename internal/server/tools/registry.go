@@ -9,7 +9,11 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
-type ToolFunc func(args map[string]any) (string, error)
+type ToolContext struct {
+	WorkingDirectory string
+}
+
+type ToolFunc func(ctx ToolContext, args map[string]any) (string, error)
 
 type ToolDef struct {
 	Name        string
@@ -30,7 +34,7 @@ func Register(name string, def ToolDef, fn ToolFunc) {
 	defs[name] = def
 }
 
-func Execute(name string, args map[string]any) (string, error) {
+func Execute(name string, ctx ToolContext, args map[string]any) (string, error) {
 	mu.RLock()
 	fn := funcs[name]
 	mu.RUnlock()
@@ -39,7 +43,7 @@ func Execute(name string, args map[string]any) (string, error) {
 		return "", nil
 	}
 
-	return fn(args)
+	return fn(ctx, args)
 }
 
 func GetAllTools() []responses.ToolUnionParam {

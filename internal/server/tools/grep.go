@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
-func Grep(args map[string]interface{}) (string, error) {
+func Grep(ctx ToolContext, args map[string]interface{}) (string, error) {
 	pattern, ok := args["pattern"].(string)
 	if !ok {
 		return "", fmt.Errorf("pattern is required and must be a string")
@@ -16,6 +17,9 @@ func Grep(args map[string]interface{}) (string, error) {
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("path is required and must be a string")
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.WorkingDirectory, path)
 	}
 
 	include, ok := args["include"].(string)
@@ -28,7 +32,7 @@ func Grep(args map[string]interface{}) (string, error) {
 	}
 
 	cmd := exec.Command("grep", "-r", "-l", "--include="+include, pattern, path)
-
+	cmd.Dir = ctx.WorkingDirectory
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -72,7 +76,7 @@ func init() {
 			},
 			"required": []string{"pattern", "path"},
 		},
-	}, func(args map[string]any) (string, error) {
-		return Grep(args)
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
+		return Grep(ctx, args)
 	})
 }

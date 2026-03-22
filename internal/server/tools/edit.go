@@ -2,6 +2,7 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -31,10 +32,13 @@ func init() {
 			},
 			"required": []string{"filePath", "oldString", "newString", "replaceAll"},
 		},
-	}, func(args map[string]any) (string, error) {
-		filePath, ok := args["filePath"].(string)
+	}, func(ctx ToolContext, args map[string]any) (string, error) {
+		path, ok := args["filePath"].(string)
 		if !ok {
 			return "", nil
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(ctx.WorkingDirectory, path)
 		}
 		oldString, ok := args["oldString"].(string)
 		if !ok {
@@ -63,7 +67,7 @@ func init() {
 			return "", nil
 		}
 
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
@@ -75,7 +79,7 @@ func init() {
 		}
 
 		newContent := strings.Replace(content, oldString, newString, n)
-		err = os.WriteFile(filePath, []byte(newContent), 0644)
+		err = os.WriteFile(path, []byte(newContent), 0644)
 		if err != nil {
 			return "", err
 		}
