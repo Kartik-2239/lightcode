@@ -76,7 +76,5 @@ func init() {
 			},
 			"required": []string{"pattern", "path"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		return Grep(ctx, args)
-	})
+	}, Grep)
 }

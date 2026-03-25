@@ -6,6 +6,27 @@ import (
 	"path/filepath"
 )
 
+func Glob(ctx ToolContext, args map[string]any) (string, error) {
+	pattern, ok := args["pattern"].(string)
+	if !ok {
+		return "", nil
+	}
+	path, ok := args["path"].(string)
+	if !ok {
+		return "", nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.WorkingDirectory, path)
+	}
+	cmd := exec.Command("find", path, "-name", fmt.Sprintf("%s", pattern))
+	cmd.Dir = ctx.WorkingDirectory
+	output, err := cmd.Output()
+	if err != nil {
+		return "No matches found", err
+	}
+	return string(output), nil
+}
+
 func init() {
 	Register("glob", ToolDef{
 		Name:        "glob",
@@ -24,24 +45,5 @@ func init() {
 			},
 			"required": []string{"pattern", "path"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		pattern, ok := args["pattern"].(string)
-		if !ok {
-			return "", nil
-		}
-		path, ok := args["path"].(string)
-		if !ok {
-			return "", nil
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(ctx.WorkingDirectory, path)
-		}
-		cmd := exec.Command("find", path, "-name", fmt.Sprintf("%s", pattern))
-		cmd.Dir = ctx.WorkingDirectory
-		output, err := cmd.Output()
-		if err != nil {
-			return "No matches found", err
-		}
-		return string(output), nil
-	})
+	}, Glob)
 }

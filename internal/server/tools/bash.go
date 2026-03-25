@@ -4,6 +4,21 @@ import (
 	"os/exec"
 )
 
+func Bash(ctx ToolContext, args map[string]any) (string, error) {
+	command, ok := args["command"].(string)
+	if !ok {
+		return "Error: command is required and must be a string", nil
+	}
+	// parts := strings.Split(command, " ")
+	cmd := exec.Command("bash", "-c", command)
+	cmd.Dir = ctx.WorkingDirectory
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "Error: " + err.Error() + "\n" + string(output), nil
+	}
+	return string(output), nil
+}
+
 func init() {
 	Register("bash", ToolDef{
 		Name:        "bash",
@@ -18,18 +33,5 @@ func init() {
 			},
 			"required": []string{"command"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		command, ok := args["command"].(string)
-		if !ok {
-			return "Error: command is required and must be a string", nil
-		}
-		// parts := strings.Split(command, " ")
-		cmd := exec.Command("bash", "-c", command)
-		cmd.Dir = ctx.WorkingDirectory
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return "Error: " + err.Error() + "\n" + string(output), err
-		}
-		return string(output), nil
-	})
+	}, Bash)
 }

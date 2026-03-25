@@ -6,6 +6,30 @@ import (
 	"strings"
 )
 
+func ReadFile(ctx ToolContext, args map[string]any) (string, error) {
+	path, ok := args["path"].(string)
+	if !ok {
+		return "", nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.WorkingDirectory, path)
+	}
+	gitignore, err := os.ReadFile(filepath.Join(ctx.WorkingDirectory, ".gitignore"))
+	if err == nil {
+		files_to_ignore := strings.Split(string(gitignore), "\n")
+		for _, file := range files_to_ignore {
+			if strings.HasSuffix(path, file) {
+				return "Error: File is in .gitignore", nil
+			}
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func init() {
 	Register("read_file", ToolDef{
 		Name:        "read_file",
@@ -20,27 +44,5 @@ func init() {
 			},
 			"required": []string{"path"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		path, ok := args["path"].(string)
-		if !ok {
-			return "", nil
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(ctx.WorkingDirectory, path)
-		}
-		gitignore, err := os.ReadFile(filepath.Join(ctx.WorkingDirectory, ".gitignore"))
-		if err == nil {
-			files_to_ignore := strings.Split(string(gitignore), "\n")
-			for _, file := range files_to_ignore {
-				if strings.HasSuffix(path, file) {
-					return "Error: File is in .gitignore", nil
-				}
-			}
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		return string(data), nil
-	})
+	}, ReadFile)
 }

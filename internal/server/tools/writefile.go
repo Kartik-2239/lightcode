@@ -5,6 +5,31 @@ import (
 	"path/filepath"
 )
 
+func WriteFile(ctx ToolContext, args map[string]any) (string, error) {
+	path, ok := args["path"].(string)
+	if !ok {
+		return "", nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.WorkingDirectory, path)
+	}
+	content, ok := args["content"].(string)
+	if !ok {
+		return "", nil
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+
+	err := os.WriteFile(path, []byte(content), 0644)
+	if err != nil {
+		return "", err
+	}
+	return "File written successfully", nil
+}
+
 func init() {
 	Register("write_file", ToolDef{
 		Name:        "write_file",
@@ -23,28 +48,5 @@ func init() {
 			},
 			"required": []string{"path", "content"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		path, ok := args["path"].(string)
-		if !ok {
-			return "", nil
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(ctx.WorkingDirectory, path)
-		}
-		content, ok := args["content"].(string)
-		if !ok {
-			return "", nil
-		}
-
-		dir := filepath.Dir(path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", err
-		}
-
-		err := os.WriteFile(path, []byte(content), 0644)
-		if err != nil {
-			return "", err
-		}
-		return "File written successfully", nil
-	})
+	}, WriteFile)
 }

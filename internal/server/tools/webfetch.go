@@ -6,6 +6,26 @@ import (
 	"time"
 )
 
+func WebFetch(ctx ToolContext, args map[string]any) (string, error) {
+	url, ok := args["url"].(string)
+	if !ok {
+		return "", nil
+	}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
 func init() {
 	Register("web_fetch", ToolDef{
 		Name:        "web_fetch",
@@ -20,23 +40,5 @@ func init() {
 			},
 			"required": []string{"url"},
 		},
-	}, func(ctx ToolContext, args map[string]any) (string, error) {
-		url, ok := args["url"].(string)
-		if !ok {
-			return "", nil
-		}
-		client := &http.Client{
-			Timeout: 10 * time.Second,
-		}
-		resp, err := client.Get(url)
-		if err != nil {
-			return "", err
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
-		}
-		return string(body), nil
-	})
+	}, WebFetch)
 }
