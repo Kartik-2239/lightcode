@@ -5,3 +5,4 @@ tools.md
 lightcode.db
 .cursorignore
 makefile
+.DS_Store
