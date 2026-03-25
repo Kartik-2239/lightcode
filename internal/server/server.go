@@ -55,7 +55,7 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	message := r.URL.Query().Get("message")
 	var messages []models.Message
 	database.Table("messages").Select("*").Where("session_id = ?", session_id).Find(&messages)
-	newMessage := models.Message{SessionID: session_id, ID: fmt.Sprintf("%s-user-%d", session_id, len(messages)), Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: message})}
+	newMessage := models.Message{SessionID: session_id, Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: message})}
 	database.Create(&newMessage)
 	json.NewEncoder(w).Encode(newMessage)
 }

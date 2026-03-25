@@ -58,7 +58,9 @@ The agent streams responses over Server-Sent Events while tool calls and file op
 - [x] first make the ui work
 - [x] UI upgrades
 - [x] Make config files
+- [X] improve tools and make test
+- [ ] Fix the database bug
 - [ ] File tracker
 - [ ] MCP
 - [ ] todo tool
-- [ ] question tool # in line 105 of agent.go. add a new role like question when the tc.name = question_tool and handle that in the tui/client.go
+- [ ] question tool 

@@ -11,6 +11,14 @@ func ReadFile(ctx ToolContext, args map[string]any) (string, error) {
 	if !ok {
 		return "", nil
 	}
+	offset, ok := args["offset"].(int)
+	if !ok {
+		offset = 1
+	}
+	limit, ok := args["limit"].(int)
+	if !ok {
+		limit = 1000
+	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(ctx.WorkingDirectory, path)
 	}
@@ -27,7 +35,15 @@ func ReadFile(ctx ToolContext, args map[string]any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	content := string(data)
+	lines := strings.Split(content, "\n")
+	lines = lines[offset-1:]
+	if len(lines) < limit {
+		limit = len(lines)
+	}
+	lines = lines[:limit]
+	content = strings.Join(lines, "\n")
+	return content, nil
 }
 
 func init() {
@@ -40,6 +56,16 @@ func init() {
 				"path": map[string]string{
 					"type":        "string",
 					"description": "The path to the file to read",
+				},
+				"offset": map[string]any{
+					"type":        "number",
+					"description": "The offset to read from the file, starting line number",
+					"default":     1,
+				},
+				"limit": map[string]any{
+					"type":        "number",
+					"description": "The number of lines to read from the file",
+					"default":     1000,
 				},
 			},
 			"required": []string{"path"},

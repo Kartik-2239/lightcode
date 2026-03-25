@@ -211,7 +211,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.streamCh = nil
 				m.messages = append(m.messages, models.Message{
 					SessionID: m.currentSession.ID,
-					ID:        fmt.Sprintf("%s-system-%d", m.currentSession.ID, len(m.messages)),
+					// ID:        fmt.Sprintf("%s-system-%d", m.currentSession.ID, len(m.messages)),
 					Data: models.EncodeMessageData(models.StoredMessageData{
 						Role: "assistant", Content: "*Generation stopped.*",
 					}),
@@ -305,8 +305,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case streamMessageMsg:
 		m.messages = append(m.messages, models.Message{
 			SessionID: m.currentSession.ID,
-			ID:        fmt.Sprintf("%s-assistant-%d", m.currentSession.ID, len(m.messages)),
-			Data:      models.EncodeMessageData(models.StoredMessageData(msg)),
+			// ID:        fmt.Sprintf("%s-assistant-%d", m.currentSession.ID, len(m.messages)),
+			Data: models.EncodeMessageData(models.StoredMessageData(msg)),
 		})
 		m.viewport.SetContent(renderMessages(m.messages, m.width))
 		m.viewport.GotoBottom()
@@ -543,7 +543,7 @@ func renderMessages(msgs []models.Message, width int) string {
 	for _, msg := range msgs {
 		d := models.DecodeMessageData(msg.Data)
 		if d.Role == "assistant" {
-			lastAssistantMsgID = msg.ID
+			lastAssistantMsgID = fmt.Sprintf("%d", msg.ID)
 			callIdx = 0
 		} else if d.Role == "tool_call" && lastAssistantMsgID != "" {
 			hasResult[callKey{lastAssistantMsgID, callIdx}] = true
@@ -585,7 +585,7 @@ func renderMessages(msgs []models.Message, width int) string {
 
 				// Only render tool calls that don't have results yet
 				for i, tc := range d.ToolCalls {
-					if !hasResult[callKey{msg.ID, i}] {
+					if !hasResult[callKey{fmt.Sprintf("%d", msg.ID), i}] {
 						lines = append(lines, dot+" "+formatToolCall(tc))
 					}
 				}
@@ -606,7 +606,7 @@ func renderMessages(msgs []models.Message, width int) string {
 		} else if d.Role == "assistant" && len(d.ToolCalls) > 0 {
 			// Assistant message with ONLY tool calls (no text content)
 			for i, tc := range d.ToolCalls {
-				if !hasResult[callKey{msg.ID, i}] {
+				if !hasResult[callKey{fmt.Sprintf("%d", msg.ID), i}] {
 					lines = append(lines, dot+" "+formatToolCall(tc))
 				}
 			}
