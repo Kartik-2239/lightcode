@@ -14,6 +14,7 @@ import (
 
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -58,6 +59,8 @@ type model struct {
 	bashMode          bool
 	streamch          chan models.StoredMessageData
 	cancelStream      context.CancelFunc
+	spinner           spinner.Model
+	isGenerating      bool
 }
 
 func initialModel() model {
@@ -93,7 +96,7 @@ func initialModel() model {
 
 	ta.ShowLineNumbers = false
 
-	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-2))
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-ta.Height()))
 	vp.KeyMap.Left.SetEnabled(false)
 	vp.KeyMap.Right.SetEnabled(false)
 
@@ -104,7 +107,11 @@ func initialModel() model {
 		sessionItems[i] = components.NewItem(s.Title, s.Directory)
 	}
 
-	return model{
+	spin := spinner.New()
+	spin.Spinner = spinner.MiniDot
+	spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	m := model{
 		textarea:          ta,
 		pasteCounter:      0,
 		pastedTexts:       make(map[int]string),
@@ -121,11 +128,37 @@ func initialModel() model {
 		senderStyle:       lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		err:               nil,
 		width:             width,
+		spinner:           spin,
+		isGenerating:      false,
 	}
+	m.syncLayout()
+	return m
 }
 
 func (m model) Init() tea.Cmd {
 	return textarea.Blink
+}
+
+func (m *model) syncLayout() {
+	m.textarea.SetWidth(m.width)
+	m.viewport.SetWidth(m.width)
+
+	reservedHeight := m.textarea.Height()
+	if m.isGenerating {
+		reservedHeight++
+	}
+	if m.islistCommandsWin {
+		reservedHeight += m.listCommands.Height()
+	}
+	if m.bashMode {
+		reservedHeight++
+	}
+
+	viewportHeight := m.height - reservedHeight
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+	m.viewport.SetHeight(viewportHeight)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -141,9 +174,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentSession = m.sessions[cur_idx]
 				m.messages = client.GetSessionData(m.currentSession.ID)
 				m.islistSessionWin = false
-				m.textarea.SetWidth(m.width)
-				m.viewport.SetWidth(m.width)
-				m.viewport.SetHeight(m.height - m.textarea.Height())
+				m.syncLayout()
 				m.viewport.SetContent(renderMessages(m.messages, m.width))
 				m.viewport.GotoBottom()
 			}
@@ -156,7 +187,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.islistCommandsWin = false
-				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
+				m.syncLayout()
 				return m, nil
 			case "up", "down":
 				var cmd tea.Cmd
@@ -167,7 +198,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cacheIndex++
 				cur_command := m.listCommands.Current()
 				m.islistCommandsWin = false
-				m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
+				m.syncLayout()
 				cmd := CmdHandler("/"+cur_command, &m)
 				return m, cmd
 			default:
@@ -177,7 +208,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				val := m.textarea.Value()
 				if !strings.HasPrefix(val, "/") {
 					m.islistCommandsWin = false
-					m.viewport.SetHeight(m.viewport.Height() + m.listCommands.Height())
+					m.syncLayout()
 				} else {
 					m.listCommands.Filter(strings.TrimPrefix(val, "/"))
 				}
@@ -191,9 +222,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.SetWidth(msg.Width)
-		m.textarea.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - m.textarea.Height())
+		m.syncLayout()
 
 		if len(m.messages) > 0 {
 			m.viewport.SetContent(renderMessages(m.messages, m.width))
@@ -206,9 +235,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc":
 			if m.streamCh != nil && m.cancelStream != nil {
+				m.isGenerating = false
 				m.cancelStream()
 				m.cancelStream = nil
 				m.streamCh = nil
+				m.syncLayout()
 				m.messages = append(m.messages, models.Message{
 					SessionID: m.currentSession.ID,
 					// ID:        fmt.Sprintf("%s-system-%d", m.currentSession.ID, len(m.messages)),
@@ -242,6 +273,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "shift+enter":
 			curVal := m.textarea.Value()
+			if m.textarea.Height() == len(strings.Split(curVal, "\n")) {
+				if m.textarea.Height() < 4 {
+					m.textarea.SetHeight(m.textarea.Height() + 1)
+					m.syncLayout()
+				}
+			}
 			m.textarea.SetValue(curVal + "\n")
 			return m, nil
 		case "enter":
@@ -255,6 +292,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sessions = append(m.sessions, m.currentSession)
 				m.listSession.Refresh(m.sessions)
 			}
+			m.isGenerating = true
+			m.syncLayout()
 			textareaValue := createPrompt(strings.Trim(m.textarea.Value(), "\n"), &m)
 
 			newMessage := client.SendMessage(m.currentSession.ID, textareaValue)
@@ -268,7 +307,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textarea.SetValue("")
 			m.textarea.Reset()
 			m.viewport.GotoBottom()
-			return m, waitForMessages(ch)
+			return m, tea.Batch(waitForMessages(ch), m.spinner.Tick)
 		case "up", "down":
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Update(msg)
@@ -276,25 +315,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "/":
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
+			wasListCommandsOpen := m.islistCommandsWin
 			if len(m.textarea.Value()) == 1 {
 				m.islistCommandsWin = true
 			}
-			m.viewport.SetHeight(m.viewport.Height() - m.listCommands.Height())
+			if !wasListCommandsOpen && m.islistCommandsWin {
+				m.syncLayout()
+			}
 			return m, cmd
 		default:
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
 
+			previousBashMode := m.bashMode
 			if strings.HasPrefix(m.textarea.Value(), "!") {
 				m.bashMode = true
 				BashModeHandler(m.textarea.Value())
-				return m, nil
 			} else {
 				m.bashMode = false
 				BashModeHandler(m.textarea.Value())
-				return m, cmd
 			}
+			if previousBashMode != m.bashMode {
+				m.syncLayout()
+			}
+			return m, cmd
 		}
+
+	case spinner.TickMsg:
+		if !m.isGenerating {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case cursor.BlinkMsg:
 		// Textarea should also process cursor blinks.
@@ -314,6 +367,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case streamDoneMsg:
 		m.streamCh = nil
+		m.isGenerating = false
+		m.syncLayout()
 		return m, nil
 
 	}
@@ -325,31 +380,38 @@ func (m model) View() tea.View {
 	if m.islistSessionWin {
 		return m.listSession.View()
 	}
-	varListCommandsView := ""
-	if m.islistCommandsWin {
-		varListCommandsView = "\n" + m.listCommands.StringView()
-	}
-	var bashModeView = ""
-	if m.bashMode {
-		bashModeView = "Bash Mode"
-	}
 	m.viewport.SetContent(
 		// m.currentSession.ID +
 		// "\n" +
 		renderMessages(m.messages, m.width))
-	viewportView := m.viewport.View()
 
-	v := tea.NewView(bashModeView + viewportView + "\n" + m.textarea.View() + varListCommandsView)
+	sections := make([]string, 0, 5)
+	if m.bashMode {
+		sections = append(sections, "Bash Mode")
+	}
+	sections = append(sections, m.viewport.View())
+
+	textareaSectionIndex := len(sections)
+	sections = append(sections, m.textarea.View())
+
+	if m.isGenerating {
+		sections = append(sections, m.spinner.View()+" Generating...")
+	}
+	if m.islistCommandsWin {
+		sections = append(sections, m.listCommands.StringView())
+	}
+
+	v := tea.NewView(strings.Join(sections, "\n"))
 	c := m.textarea.Cursor()
 	if c != nil {
-		c.Y += lipgloss.Height(viewportView)
+		if textareaSectionIndex > 0 {
+			c.Y += lipgloss.Height(strings.Join(sections[:textareaSectionIndex], "\n"))
+		}
 	}
 	v.Cursor = c
 	v.AltScreen = true
 	return v
 }
-
-// --- styles ---
 
 var (
 	styleDot        = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
@@ -360,7 +422,6 @@ var (
 	styleResultText = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 )
 
-// formatToolCall renders a tool call as ToolName(key_arg)
 func formatToolCall(tc models.StoredToolCall) string {
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(tc.Arguments), &args); err == nil && len(args) > 0 {
