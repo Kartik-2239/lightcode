@@ -7,11 +7,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/joho/godotenv"
 )
 
 func init() {
-	godotenv.Load()
+	godotenv.Load(config.EnvPath())
 	Register("skill", ToolDef{
 		Name:        "skill",
 		Description: "Load a skill from the available skills using skill name",
@@ -31,6 +32,9 @@ func init() {
 			return "", nil
 		}
 		skillPath := os.Getenv("SKILL_PATH")
+		if skillPath == "" {
+			return "Skill path not found", nil
+		}
 		fmt.Println("Skill path", skillPath)
 		skillFilePath := filepath.Join(skillPath, skillName, "SKILL.md")
 		fmt.Println("Skill file path", skillFilePath)

@@ -2,7 +2,6 @@ package tools
 
 import (
 	"os/exec"
-	"strings"
 )
 
 func init() {
@@ -24,12 +23,12 @@ func init() {
 		if !ok {
 			return "Error: command is required and must be a string", nil
 		}
-		parts := strings.Split(command, " ")
-		cmd := exec.Command(parts[0], parts[1:]...)
+		// parts := strings.Split(command, " ")
+		cmd := exec.Command("bash", "-c", command)
 		cmd.Dir = ctx.WorkingDirectory
-		output, err := cmd.Output()
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return "Error: " + err.Error(), err
+			return "Error: " + err.Error() + "\n" + string(output), err
 		}
 		return string(output), nil
 	})

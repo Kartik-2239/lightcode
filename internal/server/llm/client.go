@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/Kartik-2239/lightcode/internal/server/prompt"
 	"github.com/Kartik-2239/lightcode/internal/server/tools"
 	"github.com/openai/openai-go/v3"
@@ -29,7 +30,7 @@ type Chat struct {
 }
 
 func ApiCall(ctx context.Context, input string, chats []Chat) Response {
-	godotenv.Load()
+	godotenv.Load(config.EnvPath())
 	var toolCalls []ToolCall
 	// ctx := context.Background()
 	client := openai.NewClient()

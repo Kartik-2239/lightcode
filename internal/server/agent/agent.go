@@ -52,7 +52,8 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 			Data:      models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: prompt}),
 		}
 		if err := database.Create(&userTurn).Error; err != nil {
-			fmt.Println("Error saving user message:", err)
+			// fmt.Println("Error saving user message:", err)
+			return
 		}
 
 		for i := 0; i < MaxIterations; i++ {
@@ -62,7 +63,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				return
 			default:
 			}
-			fmt.Println("Iteration:", i)
+			// fmt.Println("Iteration:", i)
 			var messages []models.Message
 			database.Where("session_id = ?", session_id).Find(&messages)
 			chats := make([]llm.Chat, 0, len(messages))
@@ -99,10 +100,10 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				return
 			default:
 			}
-			fmt.Println("================================================")
-			fmt.Println("Tool calls:", resp.ToolCalls)
-			fmt.Println("Number of tool calls:", len(resp.ToolCalls))
-			fmt.Println("================================================")
+			// fmt.Println("================================================")
+			// fmt.Println("Tool calls:", resp.ToolCalls)
+			// fmt.Println("Number of tool calls:", len(resp.ToolCalls))
+			// fmt.Println("================================================")
 			if len(resp.ToolCalls) == 0 {
 				select {
 				case <-ctx.Done():
@@ -117,9 +118,10 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				}
 				// fmt.Println("Creating message:", newMessage)
 				if err := database.Create(&newMessage).Error; err != nil {
-					fmt.Println("Error creating message:", err)
+					// fmt.Println("Error creating message:", err)
+					return
 				} else {
-					fmt.Println("Message created successfully!")
+					// fmt.Println("Message created successfully!")
 				}
 				ch <- assistantMessage
 				return
@@ -136,17 +138,17 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				Data:      models.EncodeMessageData(assistantMessage),
 			}
 			ch <- assistantMessage
-			fmt.Println("Creating message:", assistantMsg)
+			// fmt.Println("Creating message:", assistantMsg)
 			if err := database.Create(&assistantMsg).Error; err != nil {
-				fmt.Println("Error creating message:", err)
+				// fmt.Println("Error creating message:", err)
 			} else {
-				fmt.Println("Message created successfully!")
+				// fmt.Println("Message created successfully!")
 			}
 			for _, tc := range resp.ToolCalls {
-				fmt.Println("Executing tool call:", tc.Name)
+				// fmt.Println("Executing tool call:", tc.Name)
 				result, err := llm.ExecuteToolCall(tc, session.Directory)
 				if err != nil {
-					fmt.Println("Error executing tool call:", err)
+					// fmt.Println("Error executing tool call:", err)
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					continue
 				}
@@ -157,7 +159,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 					Data:      models.EncodeMessageData(models.StoredMessageData{Role: "tool_call", Content: result, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}),
 				}
 				database.Create(&toolMsg)
-				fmt.Println("Result of tool call:", result)
+				// fmt.Println("Result of tool call:", result)
 			}
 		}
 	}()

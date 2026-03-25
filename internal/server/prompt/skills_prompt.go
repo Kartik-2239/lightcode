@@ -5,11 +5,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/joho/godotenv"
 )
 
 func AvailableSkills() string {
-	godotenv.Load()
+	godotenv.Load(config.EnvPath())
 	skillPath := os.Getenv("SKILL_PATH")
 	skill_data := []string{}
 	files, err := os.ReadDir(skillPath)

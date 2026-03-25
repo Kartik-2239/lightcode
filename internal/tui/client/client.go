@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/joho/godotenv"
 )
@@ -18,7 +19,7 @@ import (
 var baseUrl string
 
 func init() {
-	godotenv.Load()
+	godotenv.Load(config.EnvPath())
 	baseUrl = os.Getenv("API_URL")
 	if baseUrl == "" {
 		baseUrl = "http://localhost:8080"

@@ -3,7 +3,9 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"strings"
 
@@ -12,14 +14,22 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 )
 
-func Initialise() {
+func Initialise(ready chan<- struct{}) {
 	http.HandleFunc("GET /list-sessions", listSessions)
 	http.HandleFunc("GET /get-session-data", getSessionData)
 	http.HandleFunc("GET /chat-completion", chatcompletion)
 	http.HandleFunc("POST /send-message", sendMessage)
 	http.HandleFunc("POST /create-session", createSession)
 	http.HandleFunc("POST /delete-session", deleteSession)
-	http.ListenAndServe(":8080", nil)
+	// http.ListenAndServe(":8080", nil)
+
+	ln, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatal(err)
+	}
+	close(ready)
+
+	http.Serve(ln, nil)
 }
 
 func listSessions(w http.ResponseWriter, r *http.Request) {
