@@ -362,6 +362,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Data: models.EncodeMessageData(models.StoredMessageData(msg)),
 		})
 		m.viewport.SetContent(renderMessages(m.messages, m.width))
+		m.syncLayout()
 		m.viewport.GotoBottom()
 		return m, waitForMessages(m.streamCh)
 
@@ -424,26 +425,11 @@ var (
 
 func formatToolCall(tc models.StoredToolCall) string {
 	var args map[string]interface{}
-	if err := json.Unmarshal([]byte(tc.Arguments), &args); err == nil && len(args) > 0 {
-		priority := []string{"path", "file_path", "command", "pattern", "query", "url"}
-		for _, key := range priority {
-			if v, ok := args[key]; ok {
-				val := fmt.Sprintf("%v", v)
-				if len(val) > 50 {
-					val = "..." + val[len(val)-47:]
-				}
-				return fmt.Sprintf("%s(%s)", styleToolName.Render(tc.Name), val)
-			}
-		}
-		for _, v := range args {
-			val := fmt.Sprintf("%v", v)
-			if len(val) > 50 {
-				val = "..." + val[len(val)-47:]
-			}
-			return fmt.Sprintf("%s(%s)", styleToolName.Render(tc.Name), val)
-		}
+	err := json.Unmarshal([]byte(tc.Arguments), &args)
+	if err != nil {
+		return styleToolName.Render(tc.Name) + "()"
 	}
-	return styleToolName.Render(tc.Name) + "()"
+	return styleToolName.Render(tc.Name) + "(" + styleTree.Render(strings.Join(strings.Split(fmt.Sprintf("%v", args), "\n"), ", ")) + ")"
 }
 
 func formatToolResult(content string) string {
@@ -452,20 +438,10 @@ func formatToolResult(content string) string {
 		return styleResultText.Render("(no output)")
 	}
 	lines := strings.Split(content, "\n")
-	maxLines := 4
-	if len(lines) <= maxLines {
-		var out []string
-		for _, l := range lines {
-			out = append(out, "  "+styleResultText.Render(l))
-		}
-		return strings.Join(out, "\n")
+	if len(lines) <= 4 {
+		return styleResultText.Render(content)
 	}
-	var out []string
-	for _, l := range lines[:maxLines] {
-		out = append(out, "  "+styleResultText.Render(l))
-	}
-	out = append(out, styleTree.Render(fmt.Sprintf("  ... (%d more lines)", len(lines)-maxLines)))
-	return strings.Join(out, "\n")
+	return styleTree.Render(strings.Join(lines[:4], "\n") + "...")
 }
 
 // lightcodeGlamourStyle is a custom glamour style tuned to match the app palette.
