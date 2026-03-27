@@ -14,7 +14,10 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 )
 
-func Initialise(ready chan<- struct{}) {
+func Initialise(ready chan<- struct{}, port string) {
+	http.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "lightcode is running!")
+	})
 	http.HandleFunc("GET /list-sessions", listSessions)
 	http.HandleFunc("GET /get-session-data", getSessionData)
 	http.HandleFunc("GET /chat-completion", chatcompletion)
@@ -23,8 +26,13 @@ func Initialise(ready chan<- struct{}) {
 	http.HandleFunc("POST /delete-session", deleteSession)
 	// http.ListenAndServe(":8080", nil)
 
-	ln, err := net.Listen("tcp", ":8080")
+	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			fmt.Println("Running only tui")
+			return
+			// close(ready)
+		}
 		log.Fatal(err)
 	}
 	close(ready)

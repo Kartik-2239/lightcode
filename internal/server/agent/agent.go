@@ -13,7 +13,7 @@ import (
 )
 
 const MaxIterations = 10
-const DEBUG = true
+const DEBUG = false
 
 type Agent struct{}
 
@@ -45,17 +45,17 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 
 	go func() {
 		defer close(ch)
-		var prior []models.Message
-		database.Where("session_id = ?", session_id).Find(&prior)
-		userTurn := models.Message{
-			SessionID: session_id,
-			// ID:        fmt.Sprintf("%s-%d", session_id, len(prior)),
-			Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: prompt}),
-		}
-		if err := database.Create(&userTurn).Error; err != nil {
-			// fmt.Println("Error saving user message:", err)
-			return
-		}
+		// var prior []models.Message
+		// database.Where("session_id = ?", session_id).Find(&prior)
+		// userTurn := models.Message{
+		// 	SessionID: session_id,
+		// 	// ID:        fmt.Sprintf("%s-%d", session_id, len(prior)),
+		// 	Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: prompt}),
+		// }
+		// if err := database.Create(&userTurn).Error; err != nil {
+		// 	// fmt.Println("Error saving user message:", err)
+		// 	return
+		// }
 
 		for i := 0; i < MaxIterations; i++ {
 
@@ -131,7 +131,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 					return
 				} else {
 					if DEBUG {
-						fmt.Println("Message created successfully!")
+						fmt.Println("Message created successfully! LAST!")
 					}
 				}
 				ch <- assistantMessage
@@ -165,7 +165,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, session_id string) <-cha
 				if DEBUG {
 					fmt.Println("Executing tool call:", tc.Name)
 				}
-				result, err := llm.ExecuteToolCall(tc, session.Directory)
+				result, err := llm.ExecuteToolCall(tc, session.Directory, session_id)
 				if err != nil {
 					if DEBUG {
 						fmt.Println("Error executing tool call:", err)

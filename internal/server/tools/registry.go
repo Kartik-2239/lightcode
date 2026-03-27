@@ -11,6 +11,7 @@ import (
 
 type ToolContext struct {
 	WorkingDirectory string
+	SessionID        string
 }
 
 type ToolFunc func(ctx ToolContext, args map[string]any) (string, error)

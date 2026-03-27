@@ -20,10 +20,11 @@ var baseUrl string
 
 func init() {
 	godotenv.Load(config.EnvPath())
-	baseUrl = os.Getenv("API_URL")
-	if baseUrl == "" {
-		baseUrl = "http://localhost:8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	baseUrl = "http://localhost:" + port
 }
 
 func ListSession() []models.Session {
