@@ -22,16 +22,10 @@ API_URL=http://localhost:8080
 
 ## Quick start
 
-Run the **API server** (by default listens on **`:8080`**):
+Run the **API server** (by default listens on **`:8080`**) and **TUI**:
 
 ```bash
-go run ./cmd/server/main.go
-```
-
-In another terminal, run the Bubble tea **TUI client**:
-
-```bash
-go run ./cmd/tui/main.go
+go run ./cmd/lightcode/main.go
 ```
 
 The agent streams responses over Server-Sent Events while tool calls and file operations run on the server side.
