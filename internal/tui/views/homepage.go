@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/list"
@@ -61,6 +62,9 @@ type model struct {
 	cancelStream      context.CancelFunc
 	spinner           spinner.Model
 	isGenerating      bool
+	lastEsc           time.Time
+	showEscMsg        bool
+	// escTimeout        time.Duration
 }
 
 func initialModel() model {
@@ -130,6 +134,7 @@ func initialModel() model {
 		width:             width,
 		spinner:           spin,
 		isGenerating:      false,
+		lastEsc:           time.Now(),
 	}
 	m.syncLayout()
 	return m
@@ -234,7 +239,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
 		case "esc":
-			if m.streamCh != nil && m.cancelStream != nil {
+			if m.streamCh != nil && m.cancelStream != nil && time.Since(m.lastEsc) < 500*time.Millisecond {
 				m.isGenerating = false
 				m.cancelStream()
 				m.cancelStream = nil
@@ -249,8 +254,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 				m.viewport.SetContent(renderMessages(m.messages, m.width))
 				m.viewport.GotoBottom()
+				m.syncLayout()
+				m.showEscMsg = false
 				return m, nil
 			}
+			m.lastEsc = time.Now()
+			m.showEscMsg = true
+			return m, tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+				return clearEscMsg()
+			})
 			// m.sessions = client.ListSession()
 			// m.islistSessionWin = true
 
@@ -372,6 +384,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncLayout()
 		return m, nil
 
+	case clearEscMsgMsg:
+		m.showEscMsg = false
+		return m, nil
 	}
 
 	return m, nil
@@ -396,8 +411,15 @@ func (m model) View() tea.View {
 	sections = append(sections, m.textarea.View())
 
 	if m.isGenerating {
-		sections = append(sections, m.spinner.View()+" Generating...")
+		if m.showEscMsg {
+			sections = append(sections, m.spinner.View()+lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(" Press Esc again to cancel..."))
+		} else {
+			sections = append(sections, m.spinner.View()+" Generating...")
+		}
 	}
+	// if time.Since(m.lastEsc) > m.escTimeout {
+	// 	sections = append(sections, "Click Esc again to cancel the generation")
+	// }
 	if m.islistCommandsWin {
 		sections = append(sections, m.listCommands.StringView())
 	}
@@ -426,10 +448,14 @@ var (
 func formatToolCall(tc models.StoredToolCall) string {
 	var args map[string]interface{}
 	err := json.Unmarshal([]byte(tc.Arguments), &args)
+	values := []string{}
+	for arg, value := range args {
+		values = append(values, arg+": "+strings.TrimSpace(fmt.Sprintf("%v", value)))
+	}
 	if err != nil {
 		return styleToolName.Render(tc.Name) + "()"
 	}
-	return styleToolName.Render(tc.Name) + "(" + styleTree.Render(strings.Join(strings.Split(fmt.Sprintf("%v", args), "\n"), ", ")) + ")"
+	return styleToolName.Render(tc.Name) + "(" + styleTree.Render(strings.Join(values, ", ")) + ")"
 }
 
 func formatToolResult(content string) string {
@@ -659,6 +685,15 @@ func waitForMessages(ch chan models.StoredMessageData) tea.Cmd {
 			return streamDoneMsg{}
 		}
 		return streamMessageMsg(msg)
+	}
+}
+
+type clearEscMsgMsg struct {
+}
+
+func clearEscMsg() tea.Cmd {
+	return func() tea.Msg {
+		return clearEscMsgMsg{}
 	}
 }
 
