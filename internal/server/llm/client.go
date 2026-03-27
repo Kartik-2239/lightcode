@@ -45,7 +45,9 @@ func ApiCall(ctx context.Context, input string, chats []Chat) Response {
 			messages = append(messages, openai.AssistantMessage(c.Content))
 		}
 	}
-	messages = append(messages, openai.UserMessage(input))
+	if input != "" {
+		messages = append(messages, openai.UserMessage(input))
+	}
 
 	resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
@@ -55,6 +57,13 @@ func ApiCall(ctx context.Context, input string, chats []Chat) Response {
 	if err != nil {
 		fmt.Println("Error", err)
 		return Response{}
+	}
+	if len(resp.Choices) == 0 {
+		return Response{
+			Text:             "Ran into an error while calling the LLM",
+			ToolCalls:        []ToolCall{},
+			CompleteResponse: nil,
+		}
 	}
 
 	for _, item := range resp.Choices[0].Message.ToolCalls {
