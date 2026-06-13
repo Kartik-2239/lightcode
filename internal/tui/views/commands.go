@@ -131,7 +131,20 @@ func loadModelsList() ([]api.ModelInfo, error) {
 		modelsList = append(modelsList, recentModel)
 	}
 	slices.Reverse(modelsList)
-	return modelsList, nil
+
+	// De-duplicate
+	seen := make(map[string]struct{}, len(modelsList))
+	deduped := modelsList[:0]
+	for _, model := range modelsList {
+		key := model.Provider + "\x00" + model.Model + "\x00" + model.BaseUrl
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, model)
+	}
+
+	return deduped, nil
 }
 
 func openModelsList(m *model) {
