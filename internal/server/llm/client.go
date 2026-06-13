@@ -17,7 +17,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 )
 
-func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmModel.Chat, originalMessages []models.Message, mode string, img_bytes [][]byte) (llmModel.Response, error) {
+func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmModel.Chat, originalMessages []models.Message, mode string, img_bytes [][]byte, agentsMd string) (llmModel.Response, error) {
 	trimmedMessages := originalMessages[len(originalMessages)-len(chats):]
 	var toolCalls []llmModel.ToolCall
 	// cur_model, err := config.GetCurrentModel()
@@ -29,15 +29,23 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 	// 	}, err
 	// }
 
+	// Project-level instructions from AGENTS.md are injected into the system
+	// prompt so they apply on every provider path (OpenAI and OAuth) without
+	// disturbing the chats<->originalMessages alignment.
+	agentsSuffix := ""
+	if strings.TrimSpace(agentsMd) != "" {
+		agentsSuffix = "\n\n<agents_md>\n" + agentsMd + "\n</agents_md>"
+	}
+
 	var messages []openai.ChatCompletionMessageParamUnion
 	if mode == "plan" {
-		messages = append(messages, openai.SystemMessage(prompt.Plan_prompt()+prompt.AvailableSkills()))
+		messages = append(messages, openai.SystemMessage(prompt.Plan_prompt()+prompt.AvailableSkills()+agentsSuffix))
 	}
 	if mode == "chat" {
-		messages = append(messages, openai.SystemMessage(prompt.SystemPrompt()+" Available skills: "+" "+prompt.AvailableSkills()))
+		messages = append(messages, openai.SystemMessage(prompt.SystemPrompt()+" Available skills: "+" "+prompt.AvailableSkills()+agentsSuffix))
 	}
 	if mode == "assistant" {
-		messages = append(messages, openai.SystemMessage(prompt.Assistant_prompt()+prompt.ExplorePrompt()))
+		messages = append(messages, openai.SystemMessage(prompt.Assistant_prompt()+prompt.ExplorePrompt()+agentsSuffix))
 	}
 
 	for _, c := range chats {
@@ -159,7 +167,7 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 			// copilotMessages := oauth.CopilotResponsesRequest{}
 		}
 	} else {
-		resp, err = oauth.MakeOauthRequest(m.BaseUrl, m.Model, trimmedMessages, "WRITE CODE DON'T KEEP SAYING HI AGAIN AND AGAIN AFTER USER ASKS YOU TO DO SOMETHING.\n"+" Available skills: "+" "+prompt.AvailableSkills(), tools.GetAllTools())
+		resp, err = oauth.MakeOauthRequest(m.BaseUrl, m.Model, trimmedMessages, "WRITE CODE DON'T KEEP SAYING HI AGAIN AND AGAIN AFTER USER ASKS YOU TO DO SOMETHING.\n"+" Available skills: "+" "+prompt.AvailableSkills()+agentsSuffix, tools.GetAllTools())
 	}
 
 	if err != nil {
