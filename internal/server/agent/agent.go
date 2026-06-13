@@ -152,8 +152,12 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 			// chats = append(chats, llm.Chat{Role: "user", Content: cur_list})
 			agents_md, err := ReadAgentsMd(session.Directory)
 			if err != nil {
+				if config.Debug {
+					fmt.Println("Error reading AGENTS.md:", err)
+				}
+			} else if strings.TrimSpace(agents_md) != "" {
 				slices.Reverse(chats)
-				chats = append(chats, llmModel.Chat{Role: "user", Content: fmt.Sprintf("<agents_md>%s<agents_md>", agents_md)})
+				chats = append(chats, llmModel.Chat{Role: "user", Content: fmt.Sprintf("<agents_md>%s</agents_md>", agents_md)})
 				slices.Reverse(chats)
 			}
 			var resp llmModel.Response
