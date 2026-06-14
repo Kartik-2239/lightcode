@@ -37,7 +37,7 @@ Lightcode is a terminal-based coding agent for developers. It connects to any Op
 Before installing, make sure the required system dependencies are present. Run the following on: 
 1. Debian/Ubuntu-based systems:
 ```bash
-sudo apt update && sudo apt install libx11-dev libxext-dev libxi-dev libsqlite3-dev
+sudo apt install libx11-dev libxext-dev libxi-dev libsqlite3-dev
 ```
 2. Fedora/RHEL/CentOS (dnf/yum):
 ```bash
