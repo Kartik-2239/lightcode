@@ -2,14 +2,10 @@ package views
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
-	"regexp"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -95,10 +91,18 @@ type model struct {
 	mode               string
 	modelsList         []api.ModelInfo
 	isModelsListWin    bool
+	isLoginProviderWin bool
+	loginProviders     []loginProvider
+	loginProviderIndex int
+	loginAction        string
+	isEffortWin        bool
+	effortOptions      []effortOption
+	effortIndex        int
 	modelsListIndex    int
 	isCompacting       bool
 	queue              []queue
 	currentContextSize int64
+	gitStatus          statusLineGitInfo
 	enter_api_win      bool
 	isError            bool
 	errorMessage       string
@@ -164,10 +168,6 @@ func initialModel() model {
 	if err != nil {
 		modelsList = []api.ModelInfo{}
 	}
-	if len(modelsList) == 0 {
-		fmt.Println("No models found, add models in ~/.lightcode/config.json")
-		os.Exit(1)
-	}
 
 	// currentModel, err := config.GetCurrentModel()
 	currentModel, err := client.GetCurrentModel()
@@ -206,12 +206,30 @@ func initialModel() model {
 		modes:              []string{"chat", "plan", "assistant"},
 		modelsList:         modelsList,
 		isModelsListWin:    false,
+		loginProviders:     defaultLoginProviders(),
+		isLoginProviderWin: false,
+		loginProviderIndex: 0,
+		loginAction:        "login",
+		effortOptions:      defaultEffortOptions(),
+		isEffortWin:        false,
+		effortIndex:        0,
 		modelsListIndex:    currentModelIndex,
 		imgPasteCounter:    0,
 		pastedImgs:         make(map[int][]byte),
 		pastedImgPreviews:  make(map[int]kittyPreview),
 		currentContextSize: 0,
+		gitStatus:          defaultStatusLineGitInfo("."),
 		enter_api_win:      false,
+	}
+	if len(modelsList) == 0 {
+		m.messages = append(m.messages, models.Message{
+			SessionID: m.currentSession.ID,
+			Data: models.EncodeMessageData(models.StoredMessageData{
+				Role:    "assistant",
+				Content: "No provider is logged in. Run `/login` to select and authenticate a provider.",
+			}),
+		})
+		m.refreshMessagesView()
 	}
 	m.listModels.Refresh(modelsList)
 	m.syncLayout()
@@ -219,77 +237,7 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return textarea.Blink
-}
-
-func (m *model) syncLayout() {
-	m.textarea.SetWidth(max(m.width-lipgloss.Width(textareaPrompt), 1))
-	m.resizeTextareaToContent()
-	m.viewport.SetWidth(m.width)
-
-	reservedHeight := m.textarea.Height()
-	if m.isGenerating || m.isCompacting {
-		reservedHeight++
-	}
-	if len(m.mode) > 0 {
-		reservedHeight++
-	}
-	if len(m.queue) > 0 {
-		reservedHeight += len(m.queue) + 1
-	}
-	if previews, ok := m.currentKittyPreview(); ok {
-		reservedHeight += previews[0].rows
-	}
-	if m.bashMode {
-		reservedHeight++
-	}
-	if m.isError {
-		reservedHeight++
-	}
-	if m.questionMode {
-		reservedHeight += m.questionUIHeight()
-	}
-
-	if m.islistCommandsWin {
-		reservedHeight += m.listCommands.Height()
-	}
-	if m.isModelsListWin {
-		reservedHeight += m.listModels.Height()
-	}
-	// for textarea border
-	reservedHeight += 2
-	// for dir above textarea
-	if strings.TrimSpace(m.currentSession.Directory) != "." || strings.TrimSpace(m.currentSession.Directory) != "" {
-		reservedHeight += 1
-	}
-
-	viewportHeight := m.height - reservedHeight
-	if viewportHeight < 1 {
-		viewportHeight = 1
-	}
-	m.viewport.SetHeight(viewportHeight)
-}
-
-func (m *model) resizeTextareaToContent() {
-	height := max(countWrappedLines(m.textarea.Value(), m.textarea.Width(), m), 1)
-	if height != m.textarea.Height() {
-		m.textarea.SetHeight(height)
-	}
-}
-
-func (m model) textareaView() string {
-	value := m.textarea.Value()
-	if value == "" {
-		value = m.textarea.Placeholder
-	}
-	lines := wrapTextLines(value, m.textarea.Width())
-	for len(lines) < m.textarea.Height() {
-		lines = append(lines, "")
-	}
-	if len(lines) > m.textarea.Height() {
-		lines = lines[:m.textarea.Height()]
-	}
-	return strings.Join(lines, "\n")
+	return tea.Batch(textarea.Blink, refreshGitStatusCmd(m.gitStatusDirectory()))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -338,6 +286,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.syncLayout()
 				m.viewport.SetContent(renderMessages(m.messages, m.width))
 				m.viewport.GotoBottom()
+				return m, tea.Batch(cmd, refreshGitStatusCmd(m.gitStatusDirectory()))
 			case "esc":
 				m.islistSessionWin = false
 				return m, nil
@@ -352,6 +301,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.isModelsListWin {
 			return m.handleModelsListInput(msg)
+		}
+		if m.isLoginProviderWin {
+			return m.handleLoginProviderInput(msg)
+		}
+		if m.isEffortWin {
+			return m.handleEffortInput(msg)
 		}
 		switch msg.String() {
 		case "ctrl+c":
@@ -457,12 +412,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.queue = append(m.queue, queue{prompt: m.textarea.Value()})
 						m.textarea.SetValue("")
 						m.syncLayout()
-						return m, nil
+						return m, refreshGitStatusCmd(m.gitStatusDirectory())
 					}
 					val := m.textarea.Value()
 					m.textarea.SetValue("")
 					m.syncLayout()
-					return m, m.beginGeneration(val)
+					return m, tea.Batch(refreshGitStatusCmd(m.gitStatusDirectory()), m.beginGeneration(val))
 				}
 				m.syncLayout()
 				if len(curCommand) > 1 {
@@ -482,12 +437,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.queue = append(m.queue, queue{prompt: m.textarea.Value()})
 				m.textarea.SetValue("")
 				m.syncLayout()
-				return m, nil
+				return m, refreshGitStatusCmd(m.gitStatusDirectory())
 			}
 			val := m.textarea.Value()
 			m.textarea.SetValue("")
 			m.syncLayout()
-			return m, m.beginGeneration(val)
+			return m, tea.Batch(refreshGitStatusCmd(m.gitStatusDirectory()), m.beginGeneration(val))
 		case "shift+enter":
 			m.textarea.SetValue(m.textarea.Value() + "\n")
 			m.resizeTextareaToContent()
@@ -636,6 +591,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.refreshMessagesView()
 		m.syncLayout()
+		var refreshGit tea.Cmd
+		if msg.Role == "tool_call" && shouldRefreshGitAfterToolCall(models.StoredMessageData(msg)) {
+			refreshGit = refreshGitStatusCmd(m.gitStatusDirectory())
+		}
 		if msg.Role == "question" {
 			questions := parseQuestions(msg.Content)
 			if len(questions) > 0 {
@@ -657,7 +616,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.syncLayout()
 			}
 		}
-		return m, waitForMessages(m.streamCh)
+		return m, tea.Batch(refreshGit, waitForMessages(m.streamCh))
 
 	case streamDoneMsg:
 		m.streamCh = nil
@@ -677,7 +636,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// temp will turn this into a function
 			if len(m.queue) > 0 {
-				return m, m.runNextQueuedPrompt()
+				return m, tea.Batch(refreshGitStatusCmd(m.gitStatusDirectory()), m.runNextQueuedPrompt())
 			}
 			if len(m.queue) == 0 {
 				contextSize, err := client.GetContextSize(m.currentSession.ID)
@@ -687,12 +646,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.currentContextSize = contextSize
 				}
 				m.syncLayout()
-				return m, nil
+				return m, refreshGitStatusCmd(m.gitStatusDirectory())
 			}
 
 		}
 		m.refreshMessagesView()
 		m.syncLayout()
+		return m, nil
+
+	case gitStatusMsg:
+		if m.isCurrentGitStatus(msg.status) {
+			m.gitStatus = msg.status
+		}
 		return m, nil
 
 	case compactMemoryDoneMsg:
@@ -722,406 +687,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncLayout()
 		return m, nil
 
+	case loginFinishedMsg:
+		return m.handleLoginFinished(msg)
+
+	case copilotLoginStartedMsg:
+		return m.handleCopilotLoginStarted(msg)
+
+	case logoutFinishedMsg:
+		return m.handleLogoutFinished(msg)
+
 	case clearEscMsgMsg:
 		m.showEscMsg = false
 		return m, nil
 	}
 
 	return m, nil
-}
-
-func (m model) View() tea.View {
-	if m.islistSessionWin {
-		return m.listSession.View()
-	}
-	m.viewport.SetContent(
-		// m.currentSession.ID +
-		// "\n" +
-		renderMessages(m.messages, m.width))
-
-	sections := make([]string, 0, 5)
-	sections = append(sections, m.viewport.View())
-
-	if m.questionMode {
-		sections = append(sections, m.renderQuestionUI())
-	}
-	if len(m.queue) > 0 {
-		sections = append(sections, m.renderQueueList())
-	}
-
-	if previews, ok := m.currentKittyPreview(); ok {
-		images := []string{}
-		slices.Reverse(previews)
-		for _, preview := range previews {
-			if placeholders := renderKittyPlaceholders(preview.id, preview.cols, preview.rows); placeholders != "" {
-				images = append(images, placeholders)
-			}
-		}
-		sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, images...))
-
-	}
-
-	// sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(shortenDir(m.currentSession.Directory)))
-	if m.isError {
-		sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.BrightRed).Render(m.errorMessage))
-		m.isError = false
-	}
-
-	if m.enter_api_win {
-		sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.BrightRed).Render("enter api key for "+m.listModels.Current().Model))
-	} else {
-		shortenedDir := shortenDir(m.currentSession.Directory)
-		if shortenedDir != "." {
-			sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(shortenedDir))
-		}
-	}
-
-	sections = append(sections, lipgloss.NewStyle().Render(strings.Repeat("—", m.width)))
-	textareaSectionIndex := len(sections)
-
-	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Top, textareaPrompt, m.textareaView()))
-	sections = append(sections, lipgloss.NewStyle().Render(strings.Repeat("—", m.width)))
-
-	if m.islistCommandsWin {
-		sections = append(sections, m.listCommands.StringView())
-	}
-	if m.isModelsListWin {
-		sections = append(sections, m.listModels.StringView())
-	}
-
-	// mode and model name
-	// if !m.islistCommandsWin && !m.isModelsListWin {
-	s := strings.ToUpper(m.mode[:1]) + m.mode[1:] + " "
-	model_name := m.modelsList[m.modelsListIndex].Model
-
-	mode := lipgloss.NewStyle().Foreground(lipgloss.BrightMagenta).Bold(true).Render(s)
-	modelName := lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Bold(false).Render(model_name)
-
-	formatted_context := FormatK(m.currentContextSize) + " (" + strconv.FormatFloat(float64(m.currentContextSize)/1280, 'f', 1, 64) + "%)"
-
-	contextSize := lipgloss.NewStyle().Align(lipgloss.Right).Foreground(lipgloss.BrightMagenta).Width(m.width - len(s) - len(model_name)).Render(formatted_context)
-
-	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Bottom, mode, modelName, contextSize))
-	// }
-
-	if m.isGenerating || m.isCompacting {
-		if m.showEscMsg {
-			sections = append(sections, m.spinner.View()+lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(" Press Esc again to cancel..."))
-		} else if m.isCompacting {
-			sections = append(sections, m.spinner.View()+" Compacting...")
-		} else {
-			sections = append(sections, m.spinner.View()+" Generating...")
-		}
-	}
-
-	v := tea.NewView(strings.Join(sections, "\n"))
-	c := tea.NewCursor(wrappedCursorPosition(m.textarea.Value(), m.textarea.Line(), m.textarea.Column(), m.textarea.Width()))
-	if m.isModelsListWin {
-		c = nil
-	} else if c != nil {
-		c.X += lipgloss.Width(textareaPrompt)
-		if textareaSectionIndex > 0 {
-			c.Y += lipgloss.Height(strings.Join(sections[:textareaSectionIndex], "\n"))
-		}
-	}
-	v.Cursor = c
-	v.AltScreen = true
-	// v.MouseMode = tea.MouseModeCellMotion
-	return v
-}
-
-func createPrompt(value string, m *model) (string, [][]byte) {
-	re := regexp.MustCompile(`\[pasted text #(\d+)\]`)
-	textareaValue := re.ReplaceAllStringFunc(value, func(match string) string {
-		sub := re.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
-		}
-		var idx int
-		fmt.Sscanf(sub[1], "%d", &idx)
-		if real, ok := m.pastedTexts[idx]; ok {
-			return real
-		}
-		return match
-	})
-	re2 := regexp.MustCompile(`\[pasted img #(\d+)\]`)
-	imgBytes := make([][]byte, 0, len(re2.FindAllString(value, -1)))
-	textareaValue = re2.ReplaceAllStringFunc(textareaValue, func(match string) string {
-		sub := re2.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
-		}
-
-		idx, err := strconv.Atoi(sub[1])
-		if err != nil {
-			return match
-		}
-		if img, ok := m.pastedImgs[idx]; ok {
-			imgBytes = append(imgBytes, img)
-			return fmt.Sprintf("[pasted img #%d]", idx)
-		}
-		return match
-	})
-
-	textareaValue = strings.Join(strings.Fields(textareaValue), " ")
-	return textareaValue, imgBytes
-}
-
-func (m model) handleModelsListInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc", "enter":
-		selectedModel := m.listModels.Current()
-		m.isModelsListWin = false
-		m.textarea.SetValue("")
-		m.textarea.Placeholder = "Send a message..."
-		if msg.String() == "enter" && selectedModel.Model != "" {
-			m.modelsListIndex = findModelIndex(m.modelsList, selectedModel)
-			if selectedModel.ApiKey == "" {
-				m.enter_api_win = true
-				m.textarea.Placeholder = "enter api key for " + selectedModel.Model
-			}
-			err := client.SetCurrentModel(selectedModel)
-			if err != nil {
-
-			}
-		}
-
-		m.textarea.Focus()
-		(&m).syncLayout()
-		return m, nil
-	case "up", "down":
-		updatedModel, cmd := m.listModels.Update(msg)
-		m.listModels = updatedModel.(components.ModelModelsList)
-		return m, cmd
-	case "right":
-		m.listModels.NextPage()
-		return m, nil
-	case "left":
-		m.listModels.PrevPage()
-		return m, nil
-	default:
-		var cmd tea.Cmd
-		m.textarea, cmd = m.textarea.Update(msg)
-		m.listModels.Filter(m.textarea.Value())
-		m.syncLayout()
-		return m, cmd
-	}
-}
-
-func findModelIndex(modelsList []api.ModelInfo, selectedModel api.ModelInfo) int {
-	for i, model := range modelsList {
-		if model.Model == selectedModel.Model && model.BaseUrl == selectedModel.BaseUrl {
-			return i
-		}
-	}
-	return 0
-}
-func parseQuestions(content string) []questionItem {
-	var args map[string]any
-	if err := json.Unmarshal([]byte(content), &args); err != nil {
-		return nil
-	}
-	rawQuestions, ok := args["question"].([]any)
-	if !ok {
-		return nil
-	}
-	var questions []questionItem
-	for _, item := range rawQuestions {
-		obj, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		q := questionItem{}
-		q.question, _ = obj["question"].(string)
-		if rawOpts, ok := obj["options"].([]any); ok {
-			for _, o := range rawOpts {
-				if s, ok := o.(string); ok {
-					q.options = append(q.options, s)
-				}
-			}
-		}
-		if q.question != "" {
-			questions = append(questions, q)
-		}
-	}
-	return questions
-}
-
-func (m model) renderQueueList() string {
-	header := styleTodoTitle.Render("Queue")
-	lines := []string{header}
-	if len(m.queue) == 0 {
-		lines = append(lines, styleOptionNormal.Render(" no models configured"))
-		return strings.Join(lines, "\n")
-	}
-	for i, ent := range m.queue {
-		label := ent
-		lines = append(lines, styleOptionNormal.Render(" "+strconv.Itoa(i+1)+".) "+label.prompt))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m model) renderQuestionUI() string {
-	if !m.questionMode || m.questionIdx >= len(m.questions) {
-		return ""
-	}
-	q := m.questions[m.questionIdx]
-	var lines []string
-	header := fmt.Sprintf("? (%d/%d) %s", m.questionIdx+1, len(m.questions), q.question)
-	lines = append(lines, styleQuestionHeader.Render(header))
-	for i, opt := range q.options {
-		if i == m.questionSelected {
-			lines = append(lines, styleOptionSelected.Render("  ▸ "+opt))
-		} else {
-			lines = append(lines, styleOptionNormal.Render("    "+opt))
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m model) questionUIHeight() int {
-	if !m.questionMode || m.questionIdx >= len(m.questions) {
-		return 0
-	}
-	h := 1
-	h += len(m.questions[m.questionIdx].options)
-	return h
-}
-
-func (m model) handleQuestionInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc":
-		m.questionMode = false
-		m.textarea.Placeholder = "Send a message..."
-		m.textarea.Focus()
-		m.syncLayout()
-		return m, nil
-	case "enter":
-		q := m.questions[m.questionIdx]
-		if len(q.options) > 0 {
-			m.questionAnswers[m.questionIdx] = q.options[m.questionSelected]
-		} else {
-			m.questionAnswers[m.questionIdx] = m.textarea.Value()
-			m.textarea.SetValue("")
-			m.textarea.Reset()
-		}
-		m.questionIdx++
-		if m.questionIdx >= len(m.questions) {
-			return m.submitQuestionAnswers()
-		}
-		m.questionSelected = 0
-		next := m.questions[m.questionIdx]
-		if len(next.options) > 0 {
-			m.textarea.Placeholder = "↑↓ select · Enter confirm"
-			m.textarea.Blur()
-		} else {
-			m.textarea.Placeholder = "Type your answer..."
-			m.textarea.Focus()
-		}
-		m.syncLayout()
-		return m, nil
-	case "up":
-		if len(m.questions[m.questionIdx].options) > 0 && m.questionSelected > 0 {
-			m.questionSelected--
-		}
-		return m, nil
-	case "down":
-		q := m.questions[m.questionIdx]
-		if len(q.options) > 0 && m.questionSelected < len(q.options)-1 {
-			m.questionSelected++
-		}
-		return m, nil
-	default:
-		if len(m.questions[m.questionIdx].options) == 0 {
-			var cmd tea.Cmd
-			m.textarea, cmd = m.textarea.Update(msg)
-			return m, cmd
-		}
-		return m, nil
-	}
-}
-
-func (m model) handleApiKeyWin(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
-
-		client.SetApiKey(m.modelsList[m.modelsListIndex], m.textarea.Value())
-		m.textarea.SetValue("")
-		m.enter_api_win = false
-		m.textarea.Placeholder = "Send a message..."
-		m.textarea.Focus()
-		m.syncLayout()
-		return m, nil
-	case "esc", "ctrl+c":
-		m.enter_api_win = false
-		m.textarea.SetValue("")
-		m.textarea.Placeholder = "Send a message..."
-		m.textarea.Focus()
-		m.syncLayout()
-		return m, nil
-	case "ctrl+v", "meta+v":
-		curVal := m.textarea.Value()
-		err := clipboard.Init()
-		if err != nil {
-			panic(err)
-		}
-		textBytes := clipboard.Read(clipboard.FmtText)
-		m.textarea.SetValue(curVal + string(textBytes))
-		return m, nil
-
-	default:
-		var cmd tea.Cmd
-		m.textarea, cmd = m.textarea.Update(msg)
-		return m, cmd
-	}
-}
-
-func (m model) submitQuestionAnswers() (tea.Model, tea.Cmd) {
-	m.questionMode = false
-	m.textarea.Placeholder = "Send a message..."
-	m.textarea.Focus()
-
-	var parts []string
-	for i, q := range m.questions {
-		parts = append(parts, fmt.Sprintf("Q: %s\nA: %s", q.question, m.questionAnswers[i]))
-	}
-	answer := strings.Join(parts, "\n\n")
-	return m, m.beginGeneration(answer)
-}
-
-// func (m model) getMouseSelection() {
-// }
-
-func (m model) currentKittyPreview() ([]kittyPreview, bool) {
-	re := regexp.MustCompile(`\[pasted img #(\d+)\]`)
-	matches := re.FindAllStringSubmatch(m.textarea.Value(), -1)
-	previews := make([]kittyPreview, 0, len(matches))
-	for i := len(matches) - 1; i >= 0; i-- {
-		idx, err := strconv.Atoi(matches[i][1])
-		if err != nil {
-			continue
-		}
-		preview, ok := m.pastedImgPreviews[idx]
-		if ok && preview.id > 0 && preview.cols > 0 && preview.rows > 0 {
-			// preview = append(previews, preview)
-			previews = append(previews, preview)
-			// return preview, true
-		}
-	}
-	if len(previews) > 0 {
-		return previews, true
-	}
-	return []kittyPreview{}, false
-}
-
-func (m *model) clearPastedInput() {
-	m.pasteCounter = 0
-	m.pastedTexts = make(map[int]string)
-	m.imgPasteCounter = 0
-	m.pastedImgs = make(map[int][]byte)
-	m.pastedImgPreviews = make(map[int]kittyPreview)
 }

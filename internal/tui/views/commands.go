@@ -43,11 +43,11 @@ func CmdHandler(cmd string, m *model) tea.Cmd {
 		m.textarea.Reset()
 	case "/new_session":
 		resetCurrentSession(m)
-		return func() tea.Msg { return refreshSessionsMsg{} }
+		return tea.Batch(func() tea.Msg { return refreshSessionsMsg{} }, refreshGitStatusCmd(m.gitStatusDirectory()))
 
 	case "/delete_session":
 		deleteCurrentSession(m)
-		return func() tea.Msg { return refreshSessionsMsg{} }
+		return tea.Batch(func() tea.Msg { return refreshSessionsMsg{} }, refreshGitStatusCmd(m.gitStatusDirectory()))
 
 	case "/export":
 		path, err := exportCurrentSessionMarkdown(m, m.currentSession)
@@ -61,6 +61,18 @@ func CmdHandler(cmd string, m *model) tea.Cmd {
 
 	case "/models":
 		openModelsList(m)
+		return nil
+
+	case "/login":
+		openLoginProviderList(m)
+		return nil
+
+	case "/logout":
+		openLogoutProviderList(m)
+		return nil
+
+	case "/effort":
+		openEffortList(m)
 		return nil
 
 	case "/usage":
@@ -96,6 +108,7 @@ func resetCurrentSession(m *model) {
 	m.messages = []models.Message{}
 	m.completeMessages = []models.Message{}
 	m.currentContextSize = 0
+	m.gitStatus = defaultStatusLineGitInfo(m.gitStatusDirectory())
 	m.viewport.SetContent(renderMessages(m.messages, m.width))
 	m.textarea.Reset()
 	m.viewport.GotoBottom()
@@ -131,7 +144,21 @@ func loadModelsList() ([]api.ModelInfo, error) {
 		modelsList = append(modelsList, recentModel)
 	}
 	slices.Reverse(modelsList)
-	return modelsList, nil
+	return dedupeModels(modelsList), nil
+}
+
+func dedupeModels(modelsList []api.ModelInfo) []api.ModelInfo {
+	seen := map[string]bool{}
+	result := make([]api.ModelInfo, 0, len(modelsList))
+	for _, model := range modelsList {
+		key := model.BaseUrl + "\x00" + model.Model
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, model)
+	}
+	return result
 }
 
 func openModelsList(m *model) {

@@ -19,6 +19,7 @@ Lightcode is a terminal-based coding agent for developers. It connects to any Op
 ## Features
 
 - **OpenAI-compatible** — works with any provider that speaks the OpenAI Chat Completions API (OpenAI, Anthropic via proxy, Ollama, LM Studio, etc.)
+- **OAuth providers** — sign in from the TUI with Codex ChatGPT auth or GitHub Copilot device login
 - **Low memory usage** — uses less ram around 20-30 mb
 - **Skills** — uses specialized [agent-skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview).
 - **Multi-model support** — configure multiple providers and switch between models with `/models` inside the TUI
@@ -51,7 +52,57 @@ Or run directly from source:
 go run ./cmd/lightcode/main.go
 ```
 
-On first run, Lightcode creates `~/.lightcode/` with a default `config.json`. Add your model provider details (see [Configuration](#configuration)) and you're ready to go.
+On first run, Lightcode creates `~/.lightcode/` with a default `config.json`. If no provider is configured yet, the TUI still opens and prompts you to run `/login`.
+
+## TUI commands
+
+| Command | Description |
+|---------|-------------|
+| `/login` | Open the provider login picker. Supports `codex` and `copilot`. |
+| `/logout` | Open the provider logout picker and clear saved auth for the selected provider. |
+| `/models` | Switch the active model. OAuth-backed models appear as `codex auth` or `copilot auth`. |
+| `/effort` | Set Codex reasoning effort when the selected model supports it. |
+
+### Codex OAuth
+
+Lightcode can use your existing Codex ChatGPT login instead of an OpenAI API key.
+
+1. Sign in with the Codex CLI:
+
+```bash
+codex login
+```
+
+2. Make sure Codex is using file-based credential storage if your machine does not have `~/.codex/auth.json`:
+
+```toml
+# ~/.codex/config.toml
+cli_auth_credentials_store = "file"
+```
+
+3. Start Lightcode and select `Codex` during onboarding, or run `/login` in the TUI and choose `codex` to launch `codex login`. After login, open `/models` and choose a model from the `codex auth` provider.
+
+Use `/effort` with Codex auth models to set reasoning effort: `low`, `medium`, `high`, or `extra high` (`xhigh` on the wire).
+
+Lightcode imports ChatGPT OAuth tokens from `${CODEX_HOME:-~/.codex}/auth.json` into `~/.lightcode/auth.json` under the `codex` provider. Treat both files like passwords and do not commit or share them.
+
+If a request fails with `token_invalidated` or `refresh_token_invalidated`, run `/login` and choose `codex` again. Lightcode clears its imported Codex token, runs `codex logout`, launches a fresh `codex login`, and re-imports the refreshed auth cache.
+
+### GitHub Copilot OAuth
+
+Run `/login` in the TUI and choose `copilot` to start GitHub's device login flow. Lightcode opens `https://github.com/login/device`, shows the user code in the chat, polls until GitHub accepts the authorization, then saves the access token under the `copilot` provider.
+
+After login, open `/models` and choose a model from the `copilot auth` provider. Lightcode shows the same picker labels used by Copilot and maps them to the underlying model IDs internally:
+
+- `Auto`
+- `GPT-5.4 mini (default)`
+- `GPT-5 mini`
+- `Claude Haiku 4.5`
+- `Gemini 3.1 Pro (Preview)`
+
+Run `/logout` and choose `copilot` to remove the saved token and any selected Copilot model.
+
+Copilot OAuth uses GitHub's documented device flow. Copilot model access uses GitHub Copilot service endpoints and can change outside Lightcode's control. Treat `~/.lightcode/auth.json` like a password and do not commit or share it.
 
 
 ## Configuration
@@ -77,6 +128,29 @@ All settings live under **`~/.lightcode/config.json`**. The file is created auto
       "api_key": "your-api-key"
     }
   ]
+}
+```
+
+OAuth models are stored separately in `~/.lightcode/auth.json`:
+
+```json
+{
+  "codex": {
+    "type": "oauth",
+    "access_token": "...",
+    "refresh_token": "...",
+    "expires": 2000000000,
+    "account_id": "...",
+    "models": ["gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"]
+  },
+  "copilot": {
+    "type": "oauth",
+    "access_token": "...",
+    "refresh_token": "",
+    "expires": 0,
+    "account_id": "",
+    "models": ["Auto", "GPT-5.4 mini (default)", "GPT-5 mini", "Claude Haiku 4.5", "Gemini 3.1 Pro (Preview)"]
+  }
 }
 ```
 
@@ -120,5 +194,3 @@ Skills give the agent domain-specific context and significantly improve response
 ```
 
 You can also point `skills_path` in `config.json` to any other directory on your system.
-
-

@@ -44,3 +44,18 @@ func providerFromBaseUrl(baseUrl string) string {
 	}
 	return parts[0]
 }
+
+func providerLabelFromModel(m ModelInfo) string {
+	if strings.TrimSpace(m.Provider) != "" {
+		return m.Provider
+	}
+	return providerLabelFromBaseUrl(m.BaseUrl)
+}
+
+func providerLabelFromBaseUrl(baseUrl string) string {
+	trimmed := strings.TrimSpace(baseUrl)
+	if trimmed != "" && !strings.Contains(trimmed, "://") {
+		return trimmed + " auth"
+	}
+	return providerFromBaseUrl(trimmed)
+}

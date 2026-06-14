@@ -74,6 +74,7 @@ func newOnboardingModel() onboardingModel {
 	return onboardingModel{
 		stage: stageSelect,
 		providers: []onboardingProvider{
+			{name: "codex", description: "Codex       use ChatGPT login from codex login"},
 			{name: "openrouter", description: "OpenRouter   300+ models via one API key"},
 			{name: "openai", description: "OpenAI       e.g. GPT-5"},
 			{name: "anthropic", description: "Anthropic    e.g. Opus 4.8"},
@@ -201,6 +202,8 @@ func keyPlaceholder(provider string) string {
 		return "paste your OpenAI API key (sk-...)"
 	case "anthropic":
 		return "paste your Anthropic API key (sk-ant-...)"
+	case "codex":
+		return "press Enter to import ~/.codex/auth.json"
 	default:
 		return "paste your " + provider + " API key"
 	}
@@ -255,6 +258,13 @@ func (m onboardingModel) updateKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.keys[name] = value
+		if name == "codex" {
+			if err := config.ImportCodexAuth(); err != nil {
+				m.validateErr = friendlyKeyError(fmt.Errorf("run codex login first: %w", err))
+				return m, nil
+			}
+			return m.advanceKey()
+		}
 		if name == "other" {
 			// custom endpoint: no known model to test against, so save as-is
 			return m.advanceKey()
@@ -397,7 +407,7 @@ func (m onboardingModel) viewKeys() string {
 	}
 
 	sb.WriteString("\n")
-	sb.WriteString(onbHint.Render("Enter to verify & save · blank to skip · Esc back"))
+	sb.WriteString(onbHint.Render("Enter to verify & save · blank to skip keys · Esc back"))
 	sb.WriteString("\n")
 	return sb.String()
 }

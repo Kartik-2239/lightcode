@@ -3,19 +3,28 @@ package oauth
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"net/url"
+	"time"
 
 	"github.com/Kartik-2239/lightcode/internal/server/config"
 )
 
 const copilotBaseURL = "https://api.githubcopilot.com"
+const githubDeviceCodeURL = "https://github.com/login/device/code"
+const githubAccessTokenURL = "https://github.com/login/oauth/access_token"
+const githubCopilotClientID = "178c6fc778ccc68e1d6a"
+const githubCopilotScope = "read:org"
 
 type AuthResponse struct {
-	AccessToken string `json:"access_token"`
-	Error       string `json:"error"`
+	AccessToken      string `json:"access_token"`
+	TokenType        string `json:"token_type"`
+	Scope            string `json:"scope"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 type DeviceCodeResponse struct {
@@ -160,24 +169,17 @@ type CopilotChatUsage struct {
 }
 
 func StartAuthFlow() (DeviceCodeResponse, error) {
-	url := "https://github.com/login/device/code"
-	// Accept: application/json
-	// Content-Type: application/json
-	// User-Agent: opencode/<version>
-
-	body := `{
-		"client_id": "Ov23li8tweQw6odWQebz",
-		"scope": "read:user"
-	}`
-	req, err := http.NewRequest("POST", url, io.NopCloser(strings.NewReader(body)))
+	form := url.Values{}
+	form.Set("client_id", githubCopilotClientID)
+	form.Set("scope", githubCopilotScope)
+	req, err := http.NewRequest("POST", githubDeviceCodeURL, bytes.NewBufferString(form.Encode()))
 	if err != nil {
 		return DeviceCodeResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "opencode/0.1.0")
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "lightcode")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return DeviceCodeResponse{}, err
 	}
@@ -185,6 +187,9 @@ func StartAuthFlow() (DeviceCodeResponse, error) {
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return DeviceCodeResponse{}, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return DeviceCodeResponse{}, fmt.Errorf("github device code request failed: %s: %s", resp.Status, string(respBody))
 	}
 
 	var deviceCodeResp DeviceCodeResponse
@@ -197,21 +202,18 @@ func StartAuthFlow() (DeviceCodeResponse, error) {
 }
 
 func PollForAccessToken(deviceCode string) (AuthResponse, error) {
-	url := "https://github.com/login/oauth/access_token"
-	body := `{
-	"client_id": "Ov23li8tweQw6odWQebz",
-	"device_code": "` + deviceCode + `",
-	"grant_type": "urn:ietf:params:oauth:grant-type:device_code"
-}`
-	req, err := http.NewRequest("POST", url, io.NopCloser(strings.NewReader(body)))
+	form := url.Values{}
+	form.Set("client_id", githubCopilotClientID)
+	form.Set("device_code", deviceCode)
+	form.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+	req, err := http.NewRequest("POST", githubAccessTokenURL, bytes.NewBufferString(form.Encode()))
 	if err != nil {
 		return AuthResponse{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "lightcode")
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return AuthResponse{}, err
 	}
@@ -219,6 +221,9 @@ func PollForAccessToken(deviceCode string) (AuthResponse, error) {
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return AuthResponse{}, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return AuthResponse{}, fmt.Errorf("github access token request failed: %s: %s", resp.Status, string(respBody))
 	}
 
 	var tokenResp AuthResponse
@@ -230,25 +235,88 @@ func PollForAccessToken(deviceCode string) (AuthResponse, error) {
 	return tokenResp, nil
 }
 
+func WaitForAccessToken(device DeviceCodeResponse) (AuthResponse, error) {
+	interval := device.Interval
+	if interval < 5 {
+		interval = 5
+	}
+	deadline := time.Now().Add(time.Duration(device.ExpiresIn) * time.Second)
+	time.Sleep(time.Duration(interval) * time.Second)
+
+	for time.Now().Before(deadline) {
+		resp, err := PollForAccessToken(device.DeviceCode)
+		if err != nil {
+			return AuthResponse{}, err
+		}
+		if resp.AccessToken != "" {
+			return resp, nil
+		}
+		switch resp.Error {
+		case "authorization_pending":
+		case "slow_down":
+			interval += 5
+		case "access_denied":
+			return AuthResponse{}, fmt.Errorf("github authorization was denied")
+		case "expired_token":
+			return AuthResponse{}, fmt.Errorf("github device code expired")
+		default:
+			if resp.ErrorDescription != "" {
+				return AuthResponse{}, errors.New(resp.ErrorDescription)
+			}
+			if resp.Error != "" {
+				return AuthResponse{}, errors.New(resp.Error)
+			}
+			return AuthResponse{}, fmt.Errorf("github oauth response did not include an access token")
+		}
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+	return AuthResponse{}, fmt.Errorf("github device code expired")
+}
+
 func SaveAccessToken(token string) error {
 	val := config.AuthVal{
 		Type:      "oauth",
 		Access:    token,
-		Refresh:   token,
+		Refresh:   "",
 		Expires:   0,
 		AccountId: "",
 		Models:    []string{},
 	}
-	err := config.UpdateAuthVal("github", val)
+	if err := config.UpdateAuthVal(config.CopilotAuthProvider, val); err != nil {
+		return err
+	}
+	return RefreshSavedCopilotModels()
+}
+
+func RefreshSavedCopilotModels() error {
+	val, err := config.GetAuthVal(config.CopilotAuthProvider)
 	if err != nil {
 		return err
 	}
-	return nil
+	if val.Access == "" {
+		return fmt.Errorf("no access token found for github copilot")
+	}
+	models, err := MakeModelsRequest()
+	if err != nil {
+		return err
+	}
+	val.Models = DefaultCopilotPickerModelNames()
+	validModels := make([]string, 0, len(val.Models))
+	for _, model := range val.Models {
+		if _, ok := ResolveCopilotModel(model, models); ok {
+			validModels = append(validModels, model)
+		}
+	}
+	val.Models = validModels
+	if err := config.UpdateAuthVal(config.CopilotAuthProvider, val); err != nil {
+		return err
+	}
+	return config.ReconcileAuthProviderModels(config.CopilotAuthProvider, val.Models)
 }
 
 func MakeModelsRequest() ([]CopilotModel, error) {
-	var response []CopilotModel
-	val, err := config.GetAuthVal("github")
+	var response copilotModelsResponse
+	val, err := getCopilotAuthVal()
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +324,7 @@ func MakeModelsRequest() ([]CopilotModel, error) {
 		return nil, fmt.Errorf("no access token found for github copilot")
 	}
 	err = makeCopilotRequest("/models", nil, &response)
-	return response, err
+	return []CopilotModel(response), err
 }
 
 func MakeCopilotResponsesRequest(request CopilotResponsesRequest) (CopilotResponsesResponse, error) {
@@ -272,7 +340,7 @@ func MakeCopilotChatCompletionRequest(request CopilotChatCompletionRequest) (Cop
 }
 
 func makeCopilotRequest(endpoint string, request any, response any) error {
-	val, err := config.GetAuthVal("github")
+	val, err := getCopilotAuthVal()
 	if err != nil {
 		return err
 	}
@@ -281,12 +349,18 @@ func makeCopilotRequest(endpoint string, request any, response any) error {
 		return fmt.Errorf("no access token found for github copilot")
 	}
 
-	body, err := json.Marshal(request)
-	if err != nil {
-		return err
+	method := http.MethodPost
+	var body io.Reader
+	if request == nil {
+		method = http.MethodGet
+	} else {
+		bodyBytes, err := json.Marshal(request)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(bodyBytes)
 	}
-
-	req, err := http.NewRequest("POST", copilotBaseURL+endpoint, bytes.NewReader(body))
+	req, err := http.NewRequest(method, copilotBaseURL+endpoint, body)
 	if err != nil {
 		return err
 	}
@@ -311,4 +385,8 @@ func makeCopilotRequest(endpoint string, request any, response any) error {
 	}
 
 	return json.Unmarshal(respBody, response)
+}
+
+func getCopilotAuthVal() (config.AuthVal, error) {
+	return config.GetAuthVal(config.CopilotAuthProvider)
 }

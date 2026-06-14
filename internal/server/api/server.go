@@ -48,6 +48,7 @@ func Initialise(ready chan<- struct{}, port string, isDebug bool) {
 	http.HandleFunc("GET /get-models", getModels)
 	http.HandleFunc("POST /set-api-key", setApiKey)
 	http.HandleFunc("POST /set-current-model", setCurrentModel)
+	http.HandleFunc("POST /set-reasoning-effort", setReasoningEffort)
 	http.HandleFunc("GET /compact-memory", compactMemory)
 	http.HandleFunc("GET /get-copilot-models", getCopilotModels)
 	// http.ListenAndServe(":8080", nil)
@@ -221,6 +222,9 @@ func getModels(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 
 	}
+	if copilotAuth, err := config.GetAuthVal(config.CopilotAuthProvider); err == nil && copilotAuth.Access != "" {
+		_ = oauth.RefreshSavedCopilotModels()
+	}
 	authModels, err := config.GetAllAuthModels()
 	if err != nil {
 		// log.Println("fuck no models in openai codex shit bitch", err)
@@ -231,27 +235,30 @@ func getModels(w http.ResponseWriter, r *http.Request) {
 
 	for _, m := range list_models {
 		models = append(models, ModelInfo{
-			Model:    m.Model,
-			ApiKey:   m.ApiKey,
-			BaseUrl:  m.BaseUrl,
-			Provider: providerFromBaseUrl(m.BaseUrl),
+			Model:           m.Model,
+			ApiKey:          m.ApiKey,
+			BaseUrl:         m.BaseUrl,
+			ReasoningEffort: m.ReasoningEffort,
+			Provider:        providerFromBaseUrl(m.BaseUrl),
 		})
 	}
 	for _, m := range authModels {
 		models = append(models, ModelInfo{
-			Model:    m.Model,
-			ApiKey:   m.ApiKey,
-			BaseUrl:  m.BaseUrl,
-			Provider: m.BaseUrl + " auth",
+			Model:           m.Model,
+			ApiKey:          m.ApiKey,
+			BaseUrl:         m.BaseUrl,
+			ReasoningEffort: m.ReasoningEffort,
+			Provider:        m.BaseUrl + " auth",
 		})
 	}
 	for i, m := range recent_models {
 		recent[i] = ModelInfo{
-			Model:    m.Model,
-			ApiKey:   m.ApiKey,
-			BaseUrl:  m.BaseUrl,
-			Provider: providerFromBaseUrl(m.BaseUrl),
-			LastUsed: m.LastUsed,
+			Model:           m.Model,
+			ApiKey:          m.ApiKey,
+			BaseUrl:         m.BaseUrl,
+			ReasoningEffort: m.ReasoningEffort,
+			Provider:        providerLabelFromBaseUrl(m.BaseUrl),
+			LastUsed:        m.LastUsed,
 		}
 	}
 	var payload ModelTypes
@@ -286,6 +293,22 @@ func setCurrentModel(w http.ResponseWriter, r *http.Request) {
 	err = config.SetCurrentModel(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func setReasoningEffort(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Effort string `json:"effort"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = config.SetReasoningEffort(req.Effort)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 }
 
@@ -348,6 +371,15 @@ func compactMemory(w http.ResponseWriter, r *http.Request) {
 }
 
 func getCopilotModels(w http.ResponseWriter, r *http.Request) {
+	if _, err := config.GetAuthVal(config.CopilotAuthProvider); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	models := oauth.DefaultCopilotPickerModelNames()
+	json.NewEncoder(w).Encode(models)
+}
+
+func getCopilotModelsRaw(w http.ResponseWriter, r *http.Request) {
 	models, err := oauth.MakeModelsRequest()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

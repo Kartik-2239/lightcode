@@ -296,6 +296,25 @@ func SetCurrentModel(m api.ModelInfo) error {
 	return nil
 }
 
+func SetReasoningEffort(effort string) error {
+	bodybytes, err := json.Marshal(struct {
+		Effort string `json:"effort"`
+	}{Effort: effort})
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(baseUrl+"/set-reasoning-effort", "application/json", bytes.NewReader(bodybytes))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		body, _ := io.ReadAll(resp.Body)
+		return errors.New(strings.TrimSpace(string(body)))
+	}
+	return nil
+}
+
 func GetCopilotModels() ([]string, error) {
 	resp, err := http.Get(baseUrl + "/get-copilot-models")
 	if err != nil {

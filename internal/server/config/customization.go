@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -31,15 +32,17 @@ type Provider struct {
 }
 
 type ResModel struct {
-	Model   string `json:"model"`
-	ApiKey  string `json:"api_key"`
-	BaseUrl string `json:"base_url"`
+	Model           string `json:"model"`
+	ApiKey          string `json:"api_key"`
+	BaseUrl         string `json:"base_url"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 type RecentModels struct {
-	Model    string `json:"model"`
-	ApiKey   string `json:"api_key"`
-	BaseUrl  string `json:"base_url"`
-	LastUsed int64  `json:"last_used"`
+	Model           string `json:"model"`
+	ApiKey          string `json:"api_key"`
+	BaseUrl         string `json:"base_url"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	LastUsed        int64  `json:"last_used"`
 }
 type AllModels struct {
 	Models       []ResModel
@@ -53,6 +56,10 @@ type AllModels struct {
 func CreateConfig(providerNames []string, keys map[string]string, baseUrls map[string]string, models map[string][]string) error {
 	providers := []Provider{}
 	for _, name := range providerNames {
+		if name == CodexAuthProvider {
+			_ = ImportCodexAuth()
+			continue
+		}
 		if p, ok := ProviderByName(name); ok {
 			p.ApiKey = keys[name]
 			providers = append(providers, p)
@@ -72,7 +79,9 @@ func CreateConfig(providerNames []string, keys map[string]string, baseUrls map[s
 		}
 	}
 	if len(providers) == 0 {
-		providers = AllProviders()
+		if _, err := GetAuthVal(CodexAuthProvider); err != nil {
+			providers = AllProviders()
+		}
 	}
 	// default the current model to the first provider that actually has models
 	first := ResModel{}
@@ -80,6 +89,11 @@ func CreateConfig(providerNames []string, keys map[string]string, baseUrls map[s
 		if len(p.Models) > 0 {
 			first = ResModel{Model: p.Models[0], BaseUrl: p.BaseUrl, ApiKey: p.ApiKey}
 			break
+		}
+	}
+	if first.Model == "" {
+		if authModels, err := GetAllAuthModels(); err == nil && len(authModels) > 0 {
+			first = authModels[0]
 		}
 	}
 	bare := Customization{
@@ -208,6 +222,9 @@ func GetRecentModels() []RecentModels {
 
 func SetCurrentModel(model ResModel) error {
 	customization := GetCustomization()
+	if isAuthBackedBaseURL(model.BaseUrl) {
+		model.ApiKey = ""
+	}
 	customization.CurrentModel = model
 	r := customization.RecentModels
 	changed := false
@@ -215,6 +232,8 @@ func SetCurrentModel(model ResModel) error {
 		for i, m := range r {
 			if m.BaseUrl == model.BaseUrl && m.Model == model.Model {
 				r[i].LastUsed = time.Now().Unix()
+				r[i].ApiKey = model.ApiKey
+				r[i].ReasoningEffort = model.ReasoningEffort
 				changed = true
 			}
 		}
@@ -222,10 +241,11 @@ func SetCurrentModel(model ResModel) error {
 
 	if !changed {
 		r = append(r, RecentModels{
-			Model:    model.Model,
-			ApiKey:   model.ApiKey,
-			BaseUrl:  model.BaseUrl,
-			LastUsed: time.Now().Unix(),
+			Model:           model.Model,
+			ApiKey:          model.ApiKey,
+			BaseUrl:         model.BaseUrl,
+			ReasoningEffort: model.ReasoningEffort,
+			LastUsed:        time.Now().Unix(),
 		})
 	}
 	customization.RecentModels = r
@@ -242,6 +262,131 @@ func SetCurrentModel(model ResModel) error {
 		return errors.New("Error Setting current model")
 	}
 	return nil
+}
+
+func SetReasoningEffort(effort string) error {
+	effort = strings.TrimSpace(effort)
+	if !IsReasoningEffort(effort) {
+		return errors.New("unsupported reasoning effort")
+	}
+
+	customization := GetCustomization()
+	if customization.CurrentModel.Model == "" {
+		return errors.New("no current model selected")
+	}
+	if !SupportsReasoningEffort(customization.CurrentModel) {
+		return errors.New("current model does not support reasoning effort")
+	}
+
+	customization.CurrentModel.ReasoningEffort = effort
+	for i := range customization.RecentModels {
+		if customization.RecentModels[i].BaseUrl == customization.CurrentModel.BaseUrl &&
+			customization.RecentModels[i].Model == customization.CurrentModel.Model {
+			customization.RecentModels[i].ReasoningEffort = effort
+		}
+	}
+
+	d, err := json.MarshalIndent(customization, "", " ")
+	if err != nil {
+		return errors.New("Error setting reasoning effort")
+	}
+	path, err := CustomizationPath()
+	if err != nil {
+		return errors.New("Error setting reasoning effort")
+	}
+	if err := os.WriteFile(path, d, 0644); err != nil {
+		return errors.New("Error setting reasoning effort")
+	}
+	return nil
+}
+
+func IsReasoningEffort(effort string) bool {
+	switch effort {
+	case "", "low", "medium", "high", "xhigh":
+		return true
+	default:
+		return false
+	}
+}
+
+func SupportsReasoningEffort(model ResModel) bool {
+	return model.BaseUrl == CodexAuthProvider
+}
+
+func ClearModelProvider(baseURL string) error {
+	customization := GetCustomization()
+	if customization.CurrentModel.BaseUrl == baseURL {
+		customization.CurrentModel = ResModel{}
+	}
+	recents := make([]RecentModels, 0, len(customization.RecentModels))
+	for _, model := range customization.RecentModels {
+		if model.BaseUrl != baseURL {
+			recents = append(recents, model)
+		}
+	}
+	customization.RecentModels = recents
+
+	d, err := json.MarshalIndent(customization, "", " ")
+	if err != nil {
+		return errors.New("Error clearing model provider")
+	}
+	path, err := CustomizationPath()
+	if err != nil {
+		return errors.New("Error clearing model provider")
+	}
+	if err := os.WriteFile(path, d, 0644); err != nil {
+		return errors.New("Error clearing model provider")
+	}
+	return nil
+}
+
+func ReconcileAuthProviderModels(baseURL string, models []string) error {
+	allowed := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		trimmed := strings.TrimSpace(model)
+		if trimmed != "" {
+			allowed[trimmed] = struct{}{}
+		}
+	}
+
+	customization := GetCustomization()
+	if customization.CurrentModel.BaseUrl == baseURL {
+		if _, ok := allowed[customization.CurrentModel.Model]; !ok {
+			customization.CurrentModel = ResModel{}
+			if len(models) > 0 {
+				customization.CurrentModel = ResModel{Model: models[0], BaseUrl: baseURL}
+			}
+		}
+	}
+
+	recents := make([]RecentModels, 0, len(customization.RecentModels))
+	for _, model := range customization.RecentModels {
+		if model.BaseUrl == baseURL {
+			if _, ok := allowed[model.Model]; !ok {
+				continue
+			}
+		}
+		recents = append(recents, model)
+	}
+	customization.RecentModels = recents
+
+	d, err := json.MarshalIndent(customization, "", " ")
+	if err != nil {
+		return errors.New("Error reconciling model provider")
+	}
+	path, err := CustomizationPath()
+	if err != nil {
+		return errors.New("Error reconciling model provider")
+	}
+	if err := os.WriteFile(path, d, 0644); err != nil {
+		return errors.New("Error reconciling model provider")
+	}
+	return nil
+}
+
+func isAuthBackedBaseURL(baseURL string) bool {
+	trimmed := strings.TrimSpace(baseURL)
+	return trimmed != "" && !strings.HasPrefix(trimmed, "http")
 }
 
 func HasAnyApiKey() bool {
@@ -267,7 +412,7 @@ func GetCurrentModel() (ResModel, error) {
 	})
 	if len(recent_models) > 0 {
 		r := recent_models[0]
-		return ResModel{Model: r.Model, ApiKey: r.ApiKey, BaseUrl: r.BaseUrl}, nil
+		return ResModel{Model: r.Model, ApiKey: r.ApiKey, BaseUrl: r.BaseUrl, ReasoningEffort: r.ReasoningEffort}, nil
 	} else if len(models) > 0 {
 		return models[0], nil
 	}

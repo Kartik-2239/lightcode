@@ -10,7 +10,7 @@ import (
 const model = "gpt-5.5"
 
 func main() {
-	authVal, err := config.GetAuthVal("github")
+	authVal, err := config.GetAuthVal(config.CopilotAuthProvider)
 	if err != nil {
 		panic(err)
 	}

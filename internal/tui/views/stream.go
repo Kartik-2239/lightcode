@@ -62,6 +62,10 @@ func streamError() tea.Cmd {
 	}
 }
 func (m *model) beginGeneration(prompt string) tea.Cmd {
+	if len(m.modelsList) == 0 || m.modelsListIndex < 0 || m.modelsListIndex >= len(m.modelsList) {
+		appendCommandStatusMessage(m, "No provider is logged in. Run `/login` to select and authenticate a provider.")
+		return nil
+	}
 	m.isGenerating = true
 	m.syncLayout()
 
