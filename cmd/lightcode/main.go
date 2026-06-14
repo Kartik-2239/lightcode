@@ -62,12 +62,12 @@ func main() {
 		Lightcode(false, true, *isDebug)
 		return
 	}
-	if !config.HasAnyApiKey() {
-		log.Fatal("Fatal: no API key configured. Edit ~/.lightcode/config.json and add an api_key to at least one provider, then restart.")
-	}
 	if prompt == "" {
 		Lightcode(true, true, *isDebug)
 		return
+	}
+	if !config.HasAnyApiKey() && !config.HasAnyAuthModel() {
+		log.Fatal("Fatal: no API key or Codex OAuth login configured. Run lightcode without a prompt, then use /login to select a provider.")
 	}
 	// fmt.Println(prompt)
 	runAgent(prompt)

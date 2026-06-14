@@ -15,6 +15,7 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/tools"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared/constant"
 )
 
 func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmModel.Chat, originalMessages []models.Message, mode string, img_bytes [][]byte) (llmModel.Response, error) {
@@ -90,17 +91,13 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 		if err != nil {
 			return llmModel.Response{Text: "Error fetching models from copilot: " + err.Error()}, err
 		}
-		var endpoint string
-		for _, model := range models {
-			if model.Name == m.Model {
-				endpoint = model.SupportedEndpoints[0]
-			}
-		}
-		if endpoint == "" {
+		selectedModel, ok := oauth.ResolveCopilotModel(m.Model, models)
+		if !ok {
 			return llmModel.Response{Text: "Error: model not found in copilot"}, errors.New("model not found in copilot")
 		}
+		endpoint := preferredCopilotEndpoint(selectedModel.SupportedEndpoints)
 		if endpoint == "/chat/completions" {
-			copilotReq := oauth.CopilotChatCompletionRequest{Model: m.Model, Stream: false}
+			copilotReq := oauth.CopilotChatCompletionRequest{Model: copilotModelID(selectedModel), Stream: false}
 			tools := tools.GetToolsForChat()
 			copilot_tools := make([]oauth.CopilotChatTool, len(tools))
 			for i, tool := range tools {
@@ -113,16 +110,34 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 					},
 				}
 			}
-			msgs := make([]oauth.CopilotChatMessage, len(chats))
-			for i, msg := range chats {
-				msgs[i] = oauth.CopilotChatMessage{
+			msgs := make([]oauth.CopilotChatMessage, 0, len(chats)+1)
+			for _, msg := range chats {
+				msgs = append(msgs, oauth.CopilotChatMessage{
 					Role:    string(msg.Role),
 					Content: msg.Content,
-				}
+				})
+			}
+			if input != "" {
+				msgs = append(msgs, oauth.CopilotChatMessage{
+					Role:    "user",
+					Content: input,
+				})
 			}
 			copilotReq.Messages = msgs
 			copilotReq.Tools = copilot_tools
 			response, err := oauth.MakeCopilotChatCompletionRequest(copilotReq)
+			if err != nil {
+				if fallbackModel, ok := copilotIntegratorFallbackModel(selectedModel, err); ok {
+					copilotReq.Model = fallbackModel
+					response, err = oauth.MakeCopilotChatCompletionRequest(copilotReq)
+				}
+				if err != nil {
+					return llmModel.Response{Text: "Internal Error: " + err.Error()}, err
+				}
+			}
+			if len(response.Choices) == 0 {
+				return llmModel.Response{Text: "Ran into an error while calling Copilot"}, errors.New("copilot response did not include choices")
+			}
 			toolcalls := make([]llmModel.ToolCall, len(response.Choices[0].Message.ToolCalls))
 			for i, tc := range response.Choices[0].Message.ToolCalls {
 				toolcalls[i] = llmModel.ToolCall{
@@ -136,10 +151,12 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 				ID: response.ID,
 				Choices: []openai.ChatCompletionChoice{
 					{
-						FinishReason: resp.Choices[0].FinishReason,
-						Index:        resp.Choices[0].Index,
-						Logprobs:     resp.Choices[0].Logprobs,
-						Message:      resp.Choices[0].Message,
+						FinishReason: response.Choices[0].FinishReason,
+						Index:        int64(response.Choices[0].Index),
+						Message: openai.ChatCompletionMessage{
+							Content: response.Choices[0].Message.Content,
+							Role:    constant.ValueOf[constant.Assistant](),
+						},
 					},
 				},
 				Usage: openai.CompletionUsage{
@@ -155,11 +172,43 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 			}, err
 
 		}
-		if endpoint == "/v1/responses" {
-			// copilotMessages := oauth.CopilotResponsesRequest{}
+		if endpoint == "/responses" || endpoint == "/v1/responses" {
+			copilotReq := oauth.CopilotResponsesRequest{
+				Model:  copilotModelID(selectedModel),
+				Input:  copilotResponsesInput(chats, input),
+				Stream: false,
+			}
+			response, err := oauth.MakeCopilotResponsesRequest(copilotReq)
+			if err != nil {
+				return llmModel.Response{Text: "Internal Error: " + err.Error()}, err
+			}
+			text := copilotResponseText(response)
+			completeResponse := &openai.ChatCompletion{
+				ID: response.ID,
+				Choices: []openai.ChatCompletionChoice{
+					{
+						FinishReason: "stop",
+						Message: openai.ChatCompletionMessage{
+							Content: text,
+							Role:    constant.ValueOf[constant.Assistant](),
+						},
+					},
+				},
+				Usage: openai.CompletionUsage{
+					PromptTokens:     int64(response.Usage.InputTokens),
+					CompletionTokens: int64(response.Usage.OutputTokens),
+					TotalTokens:      int64(response.Usage.TotalTokens),
+				},
+			}
+			return llmModel.Response{
+				Text:             text,
+				ToolCalls:        []llmModel.ToolCall{},
+				CompleteResponse: completeResponse,
+			}, nil
 		}
+		return llmModel.Response{Text: "Error: selected Copilot model does not expose a supported endpoint"}, fmt.Errorf("copilot model %q has unsupported endpoints %v", m.Model, selectedModel.SupportedEndpoints)
 	} else {
-		resp, err = oauth.MakeOauthRequest(m.BaseUrl, m.Model, trimmedMessages, "WRITE CODE DON'T KEEP SAYING HI AGAIN AND AGAIN AFTER USER ASKS YOU TO DO SOMETHING.\n"+" Available skills: "+" "+prompt.AvailableSkills(), tools.GetAllTools())
+		resp, err = oauth.MakeOauthRequest(m.BaseUrl, m.Model, m.ReasoningEffort, trimmedMessages, "WRITE CODE DON'T KEEP SAYING HI AGAIN AND AGAIN AFTER USER ASKS YOU TO DO SOMETHING.\n"+" Available skills: "+" "+prompt.AvailableSkills(), tools.GetAllTools())
 	}
 
 	if err != nil {
@@ -202,6 +251,75 @@ func ApiCall(ctx context.Context, m config.ResModel, input string, chats []llmMo
 		ToolCalls:        toolCalls,
 		CompleteResponse: resp,
 	}, nil
+}
+
+func preferredCopilotEndpoint(endpoints []string) string {
+	for _, endpoint := range endpoints {
+		if endpoint == "/chat/completions" {
+			return endpoint
+		}
+	}
+	for _, endpoint := range endpoints {
+		if endpoint == "/responses" || endpoint == "/v1/responses" {
+			return endpoint
+		}
+	}
+	return ""
+}
+
+func copilotModelID(model oauth.CopilotModel) string {
+	if model.ID != "" {
+		return model.ID
+	}
+	return model.Name
+}
+
+func copilotIntegratorFallbackModel(model oauth.CopilotModel, err error) (string, bool) {
+	if err == nil || model.ID != "gemini-3.1-pro-preview" {
+		return "", false
+	}
+	message := err.Error()
+	if strings.Contains(message, "model_not_available_for_integrator") ||
+		strings.Contains(message, "not available for integrator") {
+		return "gemini-2.5-pro", true
+	}
+	return "", false
+}
+
+func copilotResponsesInput(chats []llmModel.Chat, input string) []oauth.CopilotResponsesInputItem {
+	items := make([]oauth.CopilotResponsesInputItem, 0, len(chats)+1)
+	for _, msg := range chats {
+		if msg.Content == "" {
+			continue
+		}
+		items = append(items, oauth.CopilotResponsesInputItem{
+			Role:    string(msg.Role),
+			Content: msg.Content,
+		})
+	}
+	if input != "" {
+		items = append(items, oauth.CopilotResponsesInputItem{
+			Role:    "user",
+			Content: input,
+		})
+	}
+	return items
+}
+
+func copilotResponseText(response oauth.CopilotResponsesResponse) string {
+	var sb strings.Builder
+	for _, output := range response.Output {
+		for _, content := range output.Content {
+			if content.Text == "" {
+				continue
+			}
+			if sb.Len() > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(content.Text)
+		}
+	}
+	return sb.String()
 }
 
 func ExecuteToolCall(tc llmModel.ToolCall, workingDirectory string, sessionID string) (tools.ToolResponse, error) {

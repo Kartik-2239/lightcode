@@ -37,8 +37,13 @@ type codexRequest struct {
 	Input        []codexInputItem `json:"input"`
 	Tools        []codexTool      `json:"tools,omitempty"`
 	ToolChoice   string           `json:"tool_choice,omitempty"`
+	Reasoning    *codexReasoning  `json:"reasoning,omitempty"`
 	Store        bool             `json:"store"`
 	Stream       bool             `json:"stream"`
+}
+
+type codexReasoning struct {
+	Effort string `json:"effort"`
 }
 
 type codexTool struct {
@@ -80,8 +85,11 @@ type OutputTokenDetails struct {
 	ReasoningTokens int64 `json:"reasoning_tokens"`
 }
 
-func MakeOauthRequest(provider string, model string, messages []models.Message, system string, tools []responses.ToolUnionParam) (*openai.ChatCompletion, error) {
+func MakeOauthRequest(provider string, model string, reasoningEffort string, messages []models.Message, system string, tools []responses.ToolUnionParam) (*openai.ChatCompletion, error) {
 	authVal, err := config.GetAuthVal(provider)
+	if err != nil {
+		return nil, err
+	}
 	if authVal.Expires == 0 || authVal.Expires < time.Now().Unix() {
 		// fmt.Printf("Tokens for provider %s have expired or are missing, refreshing...\n", provider)
 		var fetchErr error
@@ -89,10 +97,9 @@ func MakeOauthRequest(provider string, model string, messages []models.Message, 
 		if fetchErr != nil {
 			return nil, fmt.Errorf("failed to refresh tokens: %w", fetchErr)
 		}
-		config.UpdateAuthVal(provider, authVal)
-	}
-	if err != nil {
-		return nil, err
+		if err := config.UpdateAuthVal(provider, authVal); err != nil {
+			return nil, err
+		}
 	}
 
 	inputItems := []codexInputItem{{
@@ -157,38 +164,79 @@ func MakeOauthRequest(provider string, model string, messages []models.Message, 
 		Store:        false,
 		Stream:       true,
 	}
+	if reasoningEffort != "" {
+		body.Reasoning = &codexReasoning{Effort: reasoningEffort}
+	}
 
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", "https://chatgpt.com/backend-api/codex/responses", bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+authVal.Access)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("ChatGPT-Account-Id", authVal.AccountId)
+	send := func(authVal config.AuthVal) (int, string, []byte, error) {
+		req, err := http.NewRequest("POST", "https://chatgpt.com/backend-api/codex/responses", bytes.NewReader(bodyBytes))
+		if err != nil {
+			return 0, "", nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+authVal.Access)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("ChatGPT-Account-Id", authVal.AccountId)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return 0, "", nil, err
+		}
+		defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return 0, "", nil, err
+		}
+		return resp.StatusCode, resp.Status, respBody, nil
+	}
+
+	statusCode, status, respBody, err := send(authVal)
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("oauth request failed: %s: %s", resp.Status, string(respBody))
+	if statusCode == http.StatusUnauthorized {
+		refreshedAuth, refreshErr := refreshAuthAfterUnauthorized(provider, authVal)
+		if refreshErr != nil {
+			return nil, refreshErr
+		}
+		statusCode, status, respBody, err = send(refreshedAuth)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") || looksLikeStreamingResponse(respBody) {
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("oauth request failed: %s: %s", status, string(respBody))
+	}
+	if looksLikeStreamingResponse(respBody) {
 		return parseStreamingResponse(respBody)
 	}
 
 	return parseJSONResponse(respBody)
+}
+
+func refreshAuthAfterUnauthorized(provider string, authVal config.AuthVal) (config.AuthVal, error) {
+	if provider == config.CodexAuthProvider {
+		if err := config.ImportCodexAuth(); err == nil {
+			importedAuth, err := config.GetAuthVal(provider)
+			if err == nil && importedAuth.Access != "" && importedAuth.Access != authVal.Access {
+				return importedAuth, nil
+			}
+		}
+	}
+
+	refreshedAuth, err := FetchTokens(authVal)
+	if err != nil {
+		return config.AuthVal{}, fmt.Errorf("oauth token was rejected and refresh failed; run codex login again: %w", err)
+	}
+	if err := config.UpdateAuthVal(provider, refreshedAuth); err != nil {
+		return config.AuthVal{}, err
+	}
+	return refreshedAuth, nil
 }
 
 func FetchTokens(authVal config.AuthVal) (config.AuthVal, error) {
@@ -228,12 +276,19 @@ func FetchTokens(authVal config.AuthVal) (config.AuthVal, error) {
 	if err := json.Unmarshal(respBody, &tokenResp); err != nil {
 		return config.AuthVal{}, err
 	}
+	if tokenResp.RefreshToken == "" {
+		tokenResp.RefreshToken = authVal.Refresh
+	}
+	expires := authVal.Expires
+	if tokenResp.ExpiresIn > 0 {
+		expires = time.Now().Unix() + tokenResp.ExpiresIn
+	}
 
 	return config.AuthVal{
 		Type:      authVal.Type,
 		Access:    tokenResp.AccessToken,
 		Refresh:   tokenResp.RefreshToken,
-		Expires:   time.Now().Unix() + tokenResp.ExpiresIn,
+		Expires:   expires,
 		AccountId: authVal.AccountId,
 		Models:    authVal.Models,
 	}, nil

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var Debug = false
@@ -21,6 +22,9 @@ func Dir() string {
 }
 
 func SkillsPath() string {
+	if skillPath := strings.TrimSpace(os.Getenv("SKILL_PATH")); skillPath != "" {
+		return skillPath
+	}
 	return GetCustomization().SkillsPath
 }
 
