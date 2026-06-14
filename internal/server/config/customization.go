@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -61,6 +62,15 @@ func CreateConfig(providerNames []string, keys map[string]string, baseUrls map[s
 			continue
 		}
 		if p, ok := ProviderByName(name); ok {
+			if name == "ollama" {
+				models, err := GetOllamaModels(p.BaseUrl)
+				if err != nil {
+					return errors.New("error fetching models from ollama: " + err.Error())
+				}
+				p.Models = models
+				providers = append(providers, p)
+				continue
+			}
 			p.ApiKey = keys[name]
 			providers = append(providers, p)
 			continue
@@ -417,4 +427,33 @@ func GetCurrentModel() (ResModel, error) {
 		return models[0], nil
 	}
 	return ResModel{}, errors.New("no models configured")
+}
+
+// {"models":[{"name":"qwen3.5:0.8b","model":"qwen3.5:0.8b","modified_at":"2026-06-14T20:56:47.031182497+05:30","size":1036046583,"digest":"f3817196d142eaf72ce79dfebe53dcb20bd21da87ce13e138a8f8e10a866b3a4","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"873.44M","quantization_level":"Q8_0"}}]}
+type OllamaModelsResponse struct {
+	Models []struct {
+		Name  string `json:"name"`
+		Model string `json:"model"`
+	}
+}
+
+func GetOllamaModels(url string) ([]string, error) {
+	if before, ok := strings.CutSuffix(url, "/v1"); ok {
+		url = before
+	}
+	resp, err := http.Get(url + "/api/tags")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var tags OllamaModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		return nil, err
+	}
+	models := make([]string, len(tags.Models))
+	for i, m := range tags.Models {
+		models[i] = m.Model
+	}
+	return models, nil
 }

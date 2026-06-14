@@ -35,6 +35,11 @@ func AllProviders() []Provider {
 				"claude-haiku-4-5",
 			},
 		},
+		{
+			BaseUrl: "http://127.0.0.1:11434/v1",
+			ApiKey:  "",
+			Models:  []string{},
+		},
 	}
 }
 
@@ -55,6 +60,8 @@ func (p Provider) Name() string {
 		return "openai"
 	case "https://api.anthropic.com/v1":
 		return "anthropic"
+	case "http://127.0.0.1:11434/v1":
+		return "ollama"
 	default:
 		return p.BaseUrl
 	}

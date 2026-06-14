@@ -78,6 +78,7 @@ func newOnboardingModel() onboardingModel {
 			{name: "openrouter", description: "OpenRouter   300+ models via one API key"},
 			{name: "openai", description: "OpenAI       e.g. GPT-5"},
 			{name: "anthropic", description: "Anthropic    e.g. Opus 4.8"},
+			{name: "ollama", description: "Ollama       local LLaMA models"},
 			{name: "other", description: "Other        custom OpenAI-compatible endpoint"},
 		},
 		keys:     map[string]string{},
@@ -204,6 +205,8 @@ func keyPlaceholder(provider string) string {
 		return "paste your Anthropic API key (sk-ant-...)"
 	case "codex":
 		return "press Enter to import ~/.codex/auth.json"
+	case "ollama":
+		return "ollama uses local models, no API key needed"
 	default:
 		return "paste your " + provider + " API key"
 	}
