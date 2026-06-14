@@ -40,6 +40,11 @@ func AllProviders() []Provider {
 			ApiKey:  "",
 			Models:  []string{},
 		},
+		{
+			BaseUrl: "https://api.minimax.io/v1",
+			ApiKey:  "",
+			Models:  []string{},
+		},
 	}
 }
 
