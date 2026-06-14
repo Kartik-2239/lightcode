@@ -116,7 +116,7 @@ func (m model) View() tea.View {
 
 	}
 
-	// sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(shortenDir(m.currentSession.Directory)))
+	sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(shortenDir(m.currentSession.Directory)))
 	if m.isError {
 		sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.BrightRed).Render(m.errorMessage))
 		m.isError = false
