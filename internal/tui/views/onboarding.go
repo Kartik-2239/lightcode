@@ -79,6 +79,13 @@ func newOnboardingModel() onboardingModel {
 			{name: "openai", description: "OpenAI       e.g. GPT-5"},
 			{name: "anthropic", description: "Anthropic    e.g. Opus 4.8"},
 			{name: "ollama", description: "Ollama       local LLaMA models"},
+			{name: "minimax", description: "MiniMax      e.g. MiniMax-M3"},
+			{name: "zai", description: "Z.ai         e.g. GLM-5.1"},
+			{name: "moonshot", description: "Moonshot     e.g. Kimi K2.7"},
+			{name: "mimo", description: "Mimo         e.g. Mimo v2.5 Pro"},
+			{name: "mimo-sgp", description: "Mimo SGP     Mimo token-plan Singapore"},
+			{name: "mimo-ams", description: "Mimo AMS     Mimo token-plan Amsterdam"},
+			{name: "mimo-cn", description: "Mimo CN      Mimo token-plan China"},
 			{name: "other", description: "Other        custom OpenAI-compatible endpoint"},
 		},
 		keys:     map[string]string{},
@@ -203,10 +210,20 @@ func keyPlaceholder(provider string) string {
 		return "paste your OpenAI API key (sk-...)"
 	case "anthropic":
 		return "paste your Anthropic API key (sk-ant-...)"
+	case "minimax":
+		return "paste your MiniMax API key"
+	case "zai":
+		return "paste your Z.ai API key"
+	case "moonshot":
+		return "paste your Moonshot API key"
+	case "mimo":
+		return "paste your Mimo API key"
 	case "codex":
 		return "press Enter to import ~/.codex/auth.json"
 	case "ollama":
 		return "ollama uses local models, no API key needed"
+	case "mimo-sgp", "mimo-ams", "mimo-cn":
+		return "paste your " + strings.ToUpper(provider[0:1]) + provider[1:] + " token-plan API key (e.g. tp-...)"
 	default:
 		return "paste your " + provider + " API key"
 	}

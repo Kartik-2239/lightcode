@@ -43,7 +43,42 @@ func AllProviders() []Provider {
 		{
 			BaseUrl: "https://api.minimax.io/v1",
 			ApiKey:  "",
-			Models:  []string{},
+			Models:  []string{"MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed"},
+		},
+		{
+			BaseUrl: "https://api.z.ai/api/paas/v4/",
+			ApiKey:  "",
+			Models:  []string{"glm-5.1", "glm-5", "glm-4.7", "glm-4.7-flash"},
+		},
+		{
+			BaseUrl: "https://api.moonshot.ai/v1",
+			ApiKey:  "",
+			Models:  []string{"kimi-k2.7", "kimi-k2.6", "kimi-k2.5", "kimi-k2"},
+		},
+		{
+			BaseUrl: "https://api.xiaomimimo.com/v1",
+			ApiKey:  "",
+			Models:  []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro"},
+		},
+		{
+			BaseUrl: "https://api.xiaomimimo.com/v1",
+			ApiKey:  "",
+			Models:  []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro"},
+		},
+		{
+			BaseUrl: "https://token-plan-sgp.xiaomimimo.com/v1",
+			ApiKey:  "",
+			Models:  []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro"},
+		},
+		{
+			BaseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
+			ApiKey:  "",
+			Models:  []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro"},
+		},
+		{
+			BaseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+			ApiKey:  "",
+			Models:  []string{"mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro"},
 		},
 	}
 }
@@ -67,6 +102,20 @@ func (p Provider) Name() string {
 		return "anthropic"
 	case "http://127.0.0.1:11434/v1":
 		return "ollama"
+	case "https://api.minimax.io/v1":
+		return "minimax"
+	case "https://api.z.ai/api/paas/v4/":
+		return "zai"
+	case "https://api.moonshot.ai/v1":
+		return "moonshot"
+	case "https://api.xiaomimimo.com/v1":
+		return "mimo"
+	case "https://token-plan-sgp.xiaomimimo.com/v1":
+		return "mimo-sgp"
+	case "https://token-plan-ams.xiaomimimo.com/v1":
+		return "mimo-ams"
+	case "https://token-plan-cn.xiaomimimo.com/v1":
+		return "mimo-cn"
 	default:
 		return p.BaseUrl
 	}
