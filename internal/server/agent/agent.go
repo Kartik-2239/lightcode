@@ -152,19 +152,20 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 			// chats = append(chats, llm.Chat{Role: "user", Content: cur_list})
 			agents_md, err := ReadAgentsMd(session.Directory)
 			if err != nil {
-				slices.Reverse(chats)
-				chats = append(chats, llmModel.Chat{Role: "user", Content: fmt.Sprintf("<agents_md>%s<agents_md>", agents_md)})
-				slices.Reverse(chats)
+				if config.Debug {
+					fmt.Println("Error reading AGENTS.md:", err)
+				}
+				agents_md = ""
 			}
 			var resp llmModel.Response
 			if len(b64_imgs) > 0 {
 				if len(chats) <= 1 {
-					resp, err = llm.ApiCall(ctx, model, prompt, []llmModel.Chat{}, []models.Message{}, mode, b64_imgs)
+					resp, err = llm.ApiCall(ctx, model, prompt, []llmModel.Chat{}, []models.Message{}, mode, b64_imgs, agents_md)
 				} else {
-					resp, err = llm.ApiCall(ctx, model, prompt, chats[:len(chats)-1], messages, mode, b64_imgs)
+					resp, err = llm.ApiCall(ctx, model, prompt, chats[:len(chats)-1], messages, mode, b64_imgs, agents_md)
 				}
 			} else {
-				resp, err = llm.ApiCall(ctx, model, prompt, chats, messages, mode, [][]byte{})
+				resp, err = llm.ApiCall(ctx, model, prompt, chats, messages, mode, [][]byte{}, agents_md)
 			}
 			if err != nil {
 				errorMessage := models.StoredMessageData{Role: "error", Content: resp.Text, Usage: &models.StoredUsage{}}
