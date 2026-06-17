@@ -15,7 +15,6 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/server/llm/llmModel"
 	"github.com/Kartik-2239/lightcode/internal/server/oauth"
-	"github.com/Kartik-2239/lightcode/internal/server/tools"
 	"gorm.io/gorm"
 )
 
@@ -94,44 +93,13 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	json.NewDecoder(r.Body).Decode(&req)
 
-	// Expand @file mentions at send time so file contents are permanently baked
-	// into this message's Content in the DB. The agent loop reads Content as-is
-	// and never needs to re-read or re-merge — no context loss across iterations.
-	content := message
-	if len(req.Mentions) > 0 {
-		var session models.Session
-		DB.Where("id = ?", session_id).First(&session)
-		if session.Directory != "" {
-			toolCtx := tools.ToolContext{WorkingDirectory: session.Directory, SessionID: session_id}
-			seen := map[string]bool{}
-			for _, p := range req.Mentions {
-				if p == "" || seen[p] {
-					continue
-				}
-				seen[p] = true
-				toolName := "read_file"
-				if mentionIsDir(toolCtx, p) {
-					toolName = "list_dir"
-				}
-				res, _ := tools.Execute(toolName, toolCtx, map[string]any{"path": p})
-				content += fmt.Sprintf("\n\nTool %q (call_id=mention-%s) output:\n%s", toolName, p, res.Content)
-			}
-		}
-	}
+	var session models.Session
+	DB.Where("id = ?", session_id).First(&session)
+	content := expandMentions(message, req.Mentions, session_id, session.Directory)
 
 	newMessage := models.Message{SessionID: session_id, Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: content})}
 	DB.Create(&newMessage)
 	json.NewEncoder(w).Encode(newMessage)
-}
-
-// mentionIsDir reports whether p resolves to a directory inside the workspace.
-func mentionIsDir(ctx tools.ToolContext, p string) bool {
-	resolved, err := tools.ValidatePath(ctx, p)
-	if err != nil {
-		return false
-	}
-	info, err := os.Stat(resolved)
-	return err == nil && info.IsDir()
 }
 
 func deleteSession(w http.ResponseWriter, r *http.Request) {
