@@ -99,14 +99,19 @@ func getUsablePort() string {
 func Lightcode(isServer bool, isTui bool, isDebug bool) {
 	usablePort := getUsablePort()
 	if isServer && isTui {
-		ready := make(chan struct{})
+		ready := make(chan error, 1)
 		go api.Initialise(ready, usablePort, isDebug)
-		<-ready
+		if err := <-ready; err != nil {
+			log.Fatal(err)
+		}
 		views.LauchHomePage()
 	}
 	if isServer && !isTui {
-		ready := make(chan struct{})
+		ready := make(chan error, 1)
 		api.Initialise(ready, usablePort, isDebug)
+		if err := <-ready; err != nil {
+			log.Fatal(err)
+		}
 	}
 	if isTui && !isServer {
 		views.LauchHomePage()

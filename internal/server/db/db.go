@@ -4,7 +4,7 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
