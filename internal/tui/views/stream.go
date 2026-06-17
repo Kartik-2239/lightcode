@@ -70,7 +70,7 @@ func (m *model) beginGeneration(prompt string) tea.Cmd {
 	m.syncLayout()
 
 	textareaValue, img_bytes := createPrompt(strings.Trim(prompt, "\n"), m)
-	mentions := m.survivingMentions(prompt)
+	mentions := extractMentionsFromText(textareaValue)
 	m.clearPastedInput()
 	m.syncLayout()
 	newMessage, err := client.SendMessage(m.currentSession.ID, textareaValue, img_bytes, mentions)

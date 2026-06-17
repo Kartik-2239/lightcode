@@ -42,6 +42,33 @@ func TestActiveMention(t *testing.T) {
 	}
 }
 
+func TestExtractMentionsFromText(t *testing.T) {
+	cases := []struct {
+		text string
+		want []string
+	}{
+		{"see @README.md for details", []string{"README.md"}},
+		{"@a.go and @b.go", []string{"a.go", "b.go"}},
+		{"email@host.com is not a mention", nil},
+		{"@README.md @README.md dedups", []string{"README.md"}},
+		{`@"path with spaces.go" end`, []string{"path with spaces.go"}},
+		{"no mentions here", nil},
+		{"mid@word nope", nil},
+	}
+	for _, c := range cases {
+		got := extractMentionsFromText(c.text)
+		if len(got) != len(c.want) {
+			t.Errorf("%q: got %v, want %v", c.text, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%q: got[%d]=%q, want %q", c.text, i, got[i], c.want[i])
+			}
+		}
+	}
+}
+
 func TestBuildFileIndexRespectsGitignore(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "a.go"), "package a")

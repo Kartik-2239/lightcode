@@ -110,7 +110,6 @@ type model struct {
 	fileList           components.ModelFileList
 	fileIndex          []string
 	fileIndexBuilt     bool
-	mentionedFiles     []string
 }
 
 func initialModel() model {

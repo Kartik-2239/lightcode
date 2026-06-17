@@ -1,7 +1,6 @@
 package views
 
 import (
-	"slices"
 	"strings"
 )
 
@@ -99,26 +98,45 @@ func (m *model) acceptFileMention() {
 	}
 	m.textarea.SetCursorColumn(insEnd - (strings.LastIndex(newValue[:insEnd], "\n") + 1))
 
-	if !slices.Contains(m.mentionedFiles, path) {
-		m.mentionedFiles = append(m.mentionedFiles, path)
-	}
 }
 
-// survivingMentions returns the recorded mentions whose "@path" marker is still
-// present in value, so deleting the text drops the mention. Deduplicated.
-func (m *model) survivingMentions(value string) []string {
-	if len(m.mentionedFiles) == 0 {
-		return nil
-	}
+// extractMentionsFromText parses @path tokens from prompt text. A token starts
+// at an '@' that is at text start or preceded by whitespace (so email@host won't
+// match), and runs until the next whitespace. Quoted form @"path with spaces" is
+// also supported. Results are deduped in order of first appearance.
+func extractMentionsFromText(text string) []string {
 	var out []string
 	seen := map[string]bool{}
-	for _, p := range m.mentionedFiles {
-		if seen[p] {
+	runes := []rune(text)
+	for i, r := range runes {
+		if r != '@' {
 			continue
 		}
-		if strings.Contains(value, "@"+p) || strings.Contains(value, "@\""+p+"\"") {
-			seen[p] = true
-			out = append(out, p)
+		if i > 0 {
+			prev := runes[i-1]
+			if prev != ' ' && prev != '\t' && prev != '\n' {
+				continue
+			}
+		}
+		j := i + 1
+		var path string
+		if j < len(runes) && runes[j] == '"' {
+			j++
+			start := j
+			for j < len(runes) && runes[j] != '"' {
+				j++
+			}
+			path = string(runes[start:j])
+		} else {
+			start := j
+			for j < len(runes) && runes[j] != ' ' && runes[j] != '\t' && runes[j] != '\n' {
+				j++
+			}
+			path = string(runes[start:j])
+		}
+		if path != "" && !seen[path] {
+			seen[path] = true
+			out = append(out, path)
 		}
 	}
 	return out

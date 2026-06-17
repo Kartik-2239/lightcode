@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 func createPrompt(value string, m *model) (string, [][]byte) {
@@ -40,7 +39,6 @@ func createPrompt(value string, m *model) (string, [][]byte) {
 		return match
 	})
 
-	textareaValue = strings.Join(strings.Fields(textareaValue), " ")
 	return textareaValue, imgBytes
 }
 
@@ -72,5 +70,4 @@ func (m *model) clearPastedInput() {
 	m.imgPasteCounter = 0
 	m.pastedImgs = make(map[int][]byte)
 	m.pastedImgPreviews = make(map[int]kittyPreview)
-	m.mentionedFiles = nil
 }
