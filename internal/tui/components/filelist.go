@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"charm.land/bubbles/v2/list"
@@ -81,14 +82,58 @@ func (m *ModelFileList) Filter(term string) {
 			items = append(items, fileItem{path: p})
 		}
 	} else {
-		matches := fuzzy.Find(term, m.allPaths)
-		items = make([]list.Item, 0, len(matches))
-		for _, mt := range matches {
-			items = append(items, fileItem{path: mt.Str})
-		}
+		items = rankPaths(term, m.allPaths)
 	}
 	m.list.ResetSelected()
 	m.list.SetItems(items)
+}
+
+// rankPaths ranks candidate paths against term. Substring matches are preferred
+// and ranked accurately (basename hits before full-path hits, earlier position
+// and shorter paths first); fuzzy subsequence matching is only used as a
+// fallback when nothing contains term as a substring, to keep results tight.
+func rankPaths(term string, paths []string) []list.Item {
+	lt := strings.ToLower(term)
+
+	type scored struct {
+		path string
+		tier int // 0 = basename substring, 1 = full-path substring
+		pos  int
+	}
+	var subs []scored
+	for _, p := range paths {
+		lp := strings.ToLower(p)
+		base := strings.TrimSuffix(lp, "/")
+		base = base[strings.LastIndex(base, "/")+1:]
+		if idx := strings.Index(base, lt); idx >= 0 {
+			subs = append(subs, scored{p, 0, idx})
+		} else if idx := strings.Index(lp, lt); idx >= 0 {
+			subs = append(subs, scored{p, 1, idx})
+		}
+	}
+	if len(subs) > 0 {
+		sort.SliceStable(subs, func(i, j int) bool {
+			if subs[i].tier != subs[j].tier {
+				return subs[i].tier < subs[j].tier
+			}
+			if subs[i].pos != subs[j].pos {
+				return subs[i].pos < subs[j].pos
+			}
+			return len(subs[i].path) < len(subs[j].path)
+		})
+		items := make([]list.Item, 0, len(subs))
+		for _, s := range subs {
+			items = append(items, fileItem{path: s.path})
+		}
+		return items
+	}
+
+	matches := fuzzy.Find(term, paths)
+	items := make([]list.Item, 0, len(matches))
+	for _, mt := range matches {
+		items = append(items, fileItem{path: mt.Str})
+	}
+	return items
 }
 
 func (m ModelFileList) Init() tea.Cmd { return nil }
