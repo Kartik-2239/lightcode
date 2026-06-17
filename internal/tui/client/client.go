@@ -124,9 +124,10 @@ func ChatCompletion(ctx context.Context, session_id string, prompt string, mode 
 	return ch
 }
 
-func SendMessage(session_id string, message string, img_bytes [][]byte) (models.Message, error) {
+func SendMessage(session_id string, message string, img_bytes [][]byte, mentions []string) (models.Message, error) {
 	payload := map[string]interface{}{
-		"images": img_bytes,
+		"images":   img_bytes,
+		"mentions": mentions,
 	}
 	bodybytes, err := json.Marshal(payload)
 	if err != nil {

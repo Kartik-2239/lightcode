@@ -106,6 +106,11 @@ type model struct {
 	enter_api_win      bool
 	isError            bool
 	errorMessage       string
+	isFileListWin      bool
+	fileList           components.ModelFileList
+	fileIndex          []string
+	fileIndexBuilt     bool
+	mentionedFiles     []string
 }
 
 func initialModel() model {
@@ -194,6 +199,7 @@ func initialModel() model {
 		bashMode:           false,
 		listSession:        components.LaunchSessionList(sessionItems),
 		listCommands:       components.LaunchCommandList(),
+		fileList:           components.NewFileList(nil),
 		listModels:         components.LaunchModelsList(),
 		sessions:           sessions,
 		senderStyle:        lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
@@ -310,6 +316,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "ctrl+c":
+			if m.isFileListWin {
+				m.isFileListWin = false
+				m.syncLayout()
+				return m, nil
+			}
 			if m.islistCommandsWin {
 				m.islistCommandsWin = false
 				m.syncLayout()
@@ -321,6 +332,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Sequence(tea.Printf("Resume session with lightcode -r %s", m.currentSession.ID), tea.Quit)
 		case "esc":
+			if m.isFileListWin {
+				m.isFileListWin = false
+				m.syncLayout()
+				return m, nil
+			}
 			if m.islistCommandsWin {
 				m.islistCommandsWin = false
 				m.listCommands.Filter("")
@@ -398,6 +414,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 	m.adjustTextareaHeight()
 		// 	return m, nil
 		case "enter":
+			if m.isFileListWin {
+				m.acceptFileMention()
+				m.resizeTextareaToContent()
+				m.syncLayout()
+				return m, nil
+			}
 			if m.enter_api_win {
 				return m, nil
 			}
@@ -449,6 +471,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.syncLayout()
 			return m, nil
 		case "up", "down":
+			if m.isFileListWin {
+				updatedModel, cmd := m.fileList.Update(msg)
+				m.fileList = updatedModel.(components.ModelFileList)
+				return m, cmd
+			}
 			if m.islistCommandsWin {
 				var cmd tea.Cmd
 				updatedModel, cmd := m.listCommands.Update(msg)
@@ -487,6 +514,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, cmd
 		case "tab":
+			if m.isFileListWin {
+				m.acceptFileMention()
+				m.resizeTextareaToContent()
+				m.syncLayout()
+				return m, nil
+			}
 			for i, v := range m.modes {
 				if v == m.mode {
 					m.mode = m.modes[(i+1)%len(m.modes)]
@@ -495,6 +528,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case "@":
+			var cmd tea.Cmd
+			m.textarea, cmd = m.textarea.Update(msg)
+			m.updateMentionState()
+			m.resizeTextareaToContent()
+			m.syncLayout()
+			return m, cmd
 		case "/":
 			m.listCommands.Reset()
 			if m.islistCommandsWin {
@@ -535,6 +575,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			var cmd tea.Cmd
 			m.textarea, cmd = m.textarea.Update(msg)
+			m.updateMentionState()
 			m.resizeTextareaToContent()
 			m.syncLayout()
 			// m.adjustTextareaHeight()

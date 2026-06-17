@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/server/llm"
 	"github.com/Kartik-2239/lightcode/internal/server/llm/llmModel"
+	"github.com/Kartik-2239/lightcode/internal/server/tools"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +27,17 @@ type Agent struct {
 
 func New(db *gorm.DB) *Agent {
 	return &Agent{db}
+}
+
+// isDir reports whether the workspace-relative path p resolves to a directory
+// inside workingDir. Used to pick read_file vs list_dir for @file mentions.
+func isDir(workingDir, p string) bool {
+	resolved, err := tools.ValidatePath(tools.ToolContext{WorkingDirectory: workingDir}, p)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(resolved)
+	return err == nil && info.IsDir()
 }
 
 func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b64_imgs [][]byte, session_id string, mode string) <-chan models.StoredMessageData {
@@ -78,6 +91,13 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 			var token_count int64 = 0
 			slices.Reverse(messages)
 
+			// Session (working directory) is needed below to expand @file mentions
+			// while building the chat history; seen dedups repeated mentions across
+			// turns, keeping the most recent (the loop runs newest-first).
+			var session models.Session
+			database.Where("id = ?", session_id).First(&session)
+			seen := map[string]bool{}
+
 			for _, message := range messages {
 				d := models.DecodeMessageData(message.Data)
 				if strings.HasPrefix(d.Content, "<memory>") && strings.HasSuffix(d.Content, "</memory>") {
@@ -102,7 +122,26 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 					content := d.Content
 					chats = append(chats, llmModel.Chat{Role: "assistant", Content: content})
 				default:
-					chats = append(chats, llmModel.Chat{Role: "user", Content: d.Content})
+					// Expand explicit @file mentions into read_file/list_dir tool-output
+					// blocks appended to this user message, so the model sees the file as
+					// if it had run the tool itself. The blocks are embedded in the same
+					// Chat (rather than separate entries) to preserve the 1:1 alignment
+					// between chats and messages that the rest of Run/ApiCall relies on.
+					// Dedup keeps the most-recent mention of each path (loop is newest-first).
+					content := d.Content
+					for _, p := range d.Mentions {
+						if p == "" || seen[p] {
+							continue
+						}
+						seen[p] = true
+						toolName := "read_file"
+						if isDir(session.Directory, p) {
+							toolName = "list_dir"
+						}
+						res, _ := tools.Execute(toolName, tools.ToolContext{WorkingDirectory: session.Directory, SessionID: session_id}, map[string]any{"path": p})
+						content += fmt.Sprintf("\n\nTool %q (call_id=%s) output:\n%s", toolName, "mention-"+p, res.Content)
+					}
+					chats = append(chats, llmModel.Chat{Role: "user", Content: content})
 				}
 			}
 			slices.Reverse(chats)
@@ -146,8 +185,6 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 				continue
 			}
 
-			var session models.Session
-			database.Where("id = ?", session_id).First(&session)
 			// cur_list := session.ToDoList
 			// chats = append(chats, llm.Chat{Role: "user", Content: cur_list})
 			agents_md, err := ReadAgentsMd(session.Directory)

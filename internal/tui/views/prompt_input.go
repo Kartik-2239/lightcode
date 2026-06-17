@@ -72,4 +72,5 @@ func (m *model) clearPastedInput() {
 	m.imgPasteCounter = 0
 	m.pastedImgs = make(map[int][]byte)
 	m.pastedImgPreviews = make(map[int]kittyPreview)
+	m.mentionedFiles = nil
 }

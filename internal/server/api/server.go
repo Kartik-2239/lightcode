@@ -21,7 +21,8 @@ import (
 var DB *gorm.DB
 
 type Request struct {
-	Images [][]byte `json:"images"`
+	Images   [][]byte `json:"images"`
+	Mentions []string `json:"mentions"`
 }
 
 func Initialise(ready chan<- error, port string, isDebug bool) {
@@ -96,7 +97,7 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	var messages []models.Message
 	DB.Table("messages").Select("*").Where("session_id = ?", session_id).Find(&messages)
-	newMessage := models.Message{SessionID: session_id, Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: message})}
+	newMessage := models.Message{SessionID: session_id, Data: models.EncodeMessageData(models.StoredMessageData{Role: "user", Content: message, Mentions: req.Mentions})}
 	DB.Create(&newMessage)
 	json.NewEncoder(w).Encode(newMessage)
 }
