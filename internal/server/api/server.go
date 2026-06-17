@@ -24,11 +24,11 @@ type Request struct {
 	Images [][]byte `json:"images"`
 }
 
-func Initialise(ready chan<- struct{}, port string, isDebug bool) {
+func Initialise(ready chan<- error, port string, isDebug bool) {
 	config.Debug = isDebug
 	database, err := db.Connect()
 	if err != nil {
-		fmt.Println("Database error")
+		ready <- fmt.Errorf("database error: %w", err)
 		return
 	}
 	DB = database
@@ -57,14 +57,17 @@ func Initialise(ready chan<- struct{}, port string, isDebug bool) {
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
 			fmt.Println("Running only tui")
+			ready <- nil
 			return
-			// close(ready)
 		}
-		// log.Fatal(err)
+		ready <- fmt.Errorf("server listen error: %w", err)
+		return
 	}
-	close(ready)
+	ready <- nil
 
-	http.Serve(ln, nil)
+	if err := http.Serve(ln, nil); err != nil {
+		fmt.Println(err)
+	}
 }
 
 func listSessions(w http.ResponseWriter, r *http.Request) {
