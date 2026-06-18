@@ -70,9 +70,10 @@ func (m *model) beginGeneration(prompt string) tea.Cmd {
 	m.syncLayout()
 
 	textareaValue, img_bytes := createPrompt(strings.Trim(prompt, "\n"), m)
+	mentions := extractMentionsFromText(textareaValue)
 	m.clearPastedInput()
 	m.syncLayout()
-	newMessage, err := client.SendMessage(m.currentSession.ID, textareaValue, img_bytes)
+	newMessage, err := client.SendMessage(m.currentSession.ID, textareaValue, img_bytes, mentions)
 	if err != nil {
 		m.isError = true
 		m.errorMessage = "Unable to send a message"

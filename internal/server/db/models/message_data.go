@@ -8,6 +8,10 @@ type StoredMessageData struct {
 	CodeChanges []string         `json:"code_changes,omitempty"`
 	Usage       *StoredUsage     `json:"usage,omitempty"`
 	ToolCalls   []StoredToolCall `json:"tool_calls,omitempty"`
+	// Mentions holds workspace-relative paths the user explicitly attached via
+	// @file mentions in the TUI picker. They are expanded into synthetic
+	// read_file/list_dir tool-output messages when the chat history is assembled.
+	Mentions []string `json:"mentions,omitempty"`
 }
 
 type StoredUsage struct {

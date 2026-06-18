@@ -40,6 +40,9 @@ func (m *model) syncLayout() {
 	if m.islistCommandsWin {
 		reservedHeight += m.listCommands.Height()
 	}
+	if m.isFileListWin {
+		reservedHeight += m.fileList.Height()
+	}
 	if m.isModelsListWin {
 		reservedHeight += m.listModels.Height()
 	}
@@ -134,6 +137,9 @@ func (m model) View() tea.View {
 
 	if m.islistCommandsWin {
 		sections = append(sections, m.listCommands.StringView())
+	}
+	if m.isFileListWin {
+		sections = append(sections, m.fileList.StringView())
 	}
 	if m.isModelsListWin {
 		sections = append(sections, m.listModels.StringView())
