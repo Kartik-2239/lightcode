@@ -46,6 +46,9 @@ func (m *model) syncLayout() {
 	if m.isModelsListWin {
 		reservedHeight += m.listModels.Height()
 	}
+	if m.isAddProviderWin {
+		reservedHeight += m.listProviders.Height()
+	}
 	if m.isLoginProviderWin {
 		reservedHeight += loginProviderListHeight(len(m.loginProviders))
 	}
@@ -144,6 +147,9 @@ func (m model) View() tea.View {
 	if m.isModelsListWin {
 		sections = append(sections, m.listModels.StringView())
 	}
+	if m.isAddProviderWin {
+		sections = append(sections, m.listProviders.StringView())
+	}
 	if m.isLoginProviderWin {
 		sections = append(sections, m.renderLoginProviderList())
 	}
@@ -169,7 +175,7 @@ func (m model) View() tea.View {
 
 	v := tea.NewView(strings.Join(sections, "\n"))
 	c := tea.NewCursor(wrappedCursorPosition(m.textarea.Value(), m.textarea.Line(), m.textarea.Column(), m.textarea.Width()))
-	if m.isModelsListWin {
+	if m.isModelsListWin || m.isAddProviderWin {
 		c = nil
 	} else if c != nil {
 		c.X += lipgloss.Width(textareaPrompt)

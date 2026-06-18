@@ -121,11 +121,48 @@ func CreateConfig(providerNames []string, keys map[string]string, baseUrls map[s
 	return os.WriteFile(path, d, 0644)
 }
 
+func UpdateModelsForProvider(baseURL string, models []string, apiKey string) error {
+	// {
+	// 	"models": [""],
+	// 	"base_url": "http://localhost:8080",
+	//  "api_key": "sk-..."
+	// }
+	customization := GetCustomization()
+	provider_present := false
+	for i := range customization.Providers {
+		if customization.Providers[i].BaseUrl == baseURL {
+			customization.Providers[i].Models = models
+			customization.Providers[i].ApiKey = apiKey
+			provider_present = true
+		}
+	}
+	if !provider_present {
+		customization.Providers = append(customization.Providers, Provider{
+			BaseUrl: baseURL,
+			Models:  models,
+			ApiKey:  apiKey,
+		})
+	}
+	d, err := json.MarshalIndent(customization, "", " ")
+	if err != nil {
+		return errors.New("Error updating models for provider")
+	}
+	path, err := CustomizationPath()
+	if err != nil {
+		return errors.New("Error updating models for provider")
+	}
+	err = os.WriteFile(path, d, 0644)
+	if err != nil {
+		return errors.New("Error updating models for provider")
+	}
+	return nil
+}
+
 func defaultCustomization() Customization {
 	providers := getDefaultProviders()
 	model := ResModel{}
 	if len(providers) > 0 && len(providers[0].Models) > 0 {
-		model = ResModel{Model: providers[0].Models[0], BaseUrl: providers[0].BaseUrl}
+		model = ResModel{Model: providers[0].Models[0], BaseUrl: providers[0].BaseUrl, ApiKey: providers[0].ApiKey}
 	}
 	return Customization{
 		Theme:        "light",

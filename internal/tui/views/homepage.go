@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/Kartik-2239/lightcode/internal/server/api"
+	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/Kartik-2239/lightcode/internal/server/db/models"
 	"github.com/Kartik-2239/lightcode/internal/tui/client"
 	"github.com/Kartik-2239/lightcode/internal/tui/components"
@@ -57,6 +58,7 @@ type model struct {
 	listSession        components.Model
 	listCommands       components.ModelCmdList
 	listModels         components.ModelModelsList
+	listProviders      components.ModelProvidersList
 	sessions           []models.Session
 	currentSession     models.Session
 	messages           []models.Message
@@ -91,6 +93,8 @@ type model struct {
 	mode               string
 	modelsList         []api.ModelInfo
 	isModelsListWin    bool
+	isAddProviderWin   bool
+	isAddingApiKey     bool
 	isLoginProviderWin bool
 	loginProviders     []loginProvider
 	loginProviderIndex int
@@ -110,6 +114,7 @@ type model struct {
 	fileList           components.ModelFileList
 	fileIndex          []string
 	fileIndexBuilt     bool
+	providers          []config.Provider
 }
 
 func initialModel() model {
@@ -200,6 +205,7 @@ func initialModel() model {
 		listCommands:       components.LaunchCommandList(),
 		fileList:           components.NewFileList(nil),
 		listModels:         components.LaunchModelsList(),
+		listProviders:      components.LaunchProviderList(),
 		sessions:           sessions,
 		senderStyle:        lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		err:                nil,
@@ -211,6 +217,7 @@ func initialModel() model {
 		modes:              []string{"chat", "plan", "assistant"},
 		modelsList:         modelsList,
 		isModelsListWin:    false,
+		isAddProviderWin:   false,
 		loginProviders:     defaultLoginProviders(),
 		isLoginProviderWin: false,
 		loginProviderIndex: 0,
@@ -237,6 +244,8 @@ func initialModel() model {
 		m.refreshMessagesView()
 	}
 	m.listModels.Refresh(modelsList)
+	m.providers = config.AllProviders()
+	m.listProviders.Refresh(m.providers)
 	m.syncLayout()
 	return m
 }
@@ -301,11 +310,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.questionMode {
 			return m.handleQuestionInput(msg)
 		}
-		if m.enter_api_win {
-			return m.handleApiKeyWin(msg)
-		}
+		// if m.enter_api_win {
+		// 	return m.handleApiKeyWin(msg)
+		// }
 		if m.isModelsListWin {
 			return m.handleModelsListInput(msg)
+		}
+		if m.isAddProviderWin {
+			return m.handleAddProviderListInput(msg)
+		}
+		if m.isAddingApiKey {
+			return m.handleProviderApiKeyWin(msg)
 		}
 		if m.isLoginProviderWin {
 			return m.handleLoginProviderInput(msg)

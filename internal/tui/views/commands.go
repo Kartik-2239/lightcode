@@ -94,6 +94,8 @@ func CmdHandler(cmd string, m *model) tea.Cmd {
 		m.viewport.GotoBottom()
 		return tea.Batch(compactMemoryCmd(m.currentSession.ID), m.spinner.Tick)
 
+	case "/add_provider":
+		openAddProviderList(m)
 	default:
 		return nil
 	}
@@ -101,6 +103,18 @@ func CmdHandler(cmd string, m *model) tea.Cmd {
 		return waitForMessages(m.streamCh)
 	}
 	return nil
+}
+
+func openAddProviderList(m *model) {
+	m.providers = config.AllProviders()
+	m.textarea.Reset()
+	m.listProviders.Refresh(m.providers)
+	m.listProviders.Filter("")
+	m.isAddProviderWin = true
+	m.textarea.Placeholder = "type to filter · ↑↓ select · Enter/Esc close"
+	m.textarea.Focus()
+	m.syncLayout()
+
 }
 
 func resetCurrentSession(m *model) {
