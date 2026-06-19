@@ -4,6 +4,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/Kartik-2239/lightcode/internal/server/config"
 	"github.com/Kartik-2239/lightcode/internal/tui/components"
+	"github.com/aymanbagabas/go-nativeclipboard"
+	"golang.design/x/clipboard"
 )
 
 func (m model) handleAddProviderListInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -73,8 +75,20 @@ func (m model) handleProviderApiKeyWin(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		m.textarea.Focus()
 		(&m).syncLayout()
 		return m, nil
+	case "ctrl+v", "meta+v":
+		err := clipboard.Init()
+		if err != nil {
+			panic(err)
+		}
+		textBytes, textErr := nativeclipboard.Text.Read()
+		if textErr != nil {
+			panic(textErr)
+		}
+		m.textarea.InsertString(string(textBytes))
+		(&m).syncLayout()
+		return m, nil
 
-	case "esc":
+	case "esc", "ctrl+c":
 		m.isAddingApiKey = false
 		m.textarea.Placeholder = "Type your message here..."
 		m.textarea.Reset()
