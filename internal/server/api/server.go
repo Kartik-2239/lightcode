@@ -226,9 +226,6 @@ func getModels(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 
 	}
-	if copilotAuth, err := config.GetAuthVal(config.CopilotAuthProvider); err == nil && copilotAuth.Access != "" {
-		_ = oauth.RefreshSavedCopilotModels()
-	}
 	authModels, err := config.GetAllAuthModels()
 	if err != nil {
 		// log.Println("fuck no models in openai codex shit bitch", err)
@@ -379,19 +376,10 @@ func getCopilotModels(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	models := oauth.DefaultCopilotPickerModelNames()
-	json.NewEncoder(w).Encode(models)
-}
-
-func getCopilotModelsRaw(w http.ResponseWriter, r *http.Request) {
 	models, err := oauth.MakeModelsRequest()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	model_list := make([]string, len(models))
-	for i, m := range models {
-		model_list[i] = m.Name
-	}
-	json.NewEncoder(w).Encode(model_list)
+	json.NewEncoder(w).Encode(oauth.CopilotModelNames(models))
 }

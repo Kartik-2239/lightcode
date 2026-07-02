@@ -300,14 +300,7 @@ func RefreshSavedCopilotModels() error {
 	if err != nil {
 		return err
 	}
-	val.Models = DefaultCopilotPickerModelNames()
-	validModels := make([]string, 0, len(val.Models))
-	for _, model := range val.Models {
-		if _, ok := ResolveCopilotModel(model, models); ok {
-			validModels = append(validModels, model)
-		}
-	}
-	val.Models = validModels
+	val.Models = CopilotModelNames(models)
 	if err := config.UpdateAuthVal(config.CopilotAuthProvider, val); err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package oauth
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -69,19 +70,36 @@ func DefaultCopilotPickerModelNames() []string {
 	return names
 }
 
+// CopilotModelNames returns the display names for live models returned by
+// MakeModelsRequest, in the order the API returned them.
+func CopilotModelNames(models []CopilotModel) []string {
+	names := make([]string, 0, len(models))
+	for _, model := range models {
+		if model.Name == "" {
+			continue
+		}
+		if strings.Contains(model.Name, "Embed") {
+			continue
+		}
+		names = append(names, model.Name)
+	}
+	slices.Reverse(names)
+	return names
+}
+
 func ResolveCopilotModel(name string, liveModels []CopilotModel) (CopilotModel, bool) {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
 		return CopilotModel{}, false
 	}
 
-	for _, model := range defaultCopilotPickerModels() {
+	for _, model := range liveModels {
 		if trimmed == model.Name || trimmed == model.ID {
 			return model, true
 		}
 	}
 
-	for _, model := range liveModels {
+	for _, model := range defaultCopilotPickerModels() {
 		if trimmed == model.Name || trimmed == model.ID {
 			return model, true
 		}
