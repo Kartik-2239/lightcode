@@ -51,14 +51,25 @@ sudo pacman -S libx11 libxext libxi sqlite
 ```bash
 sudo zypper install libX11-devel libXext-devel libXi-devel sqlite3-devel
 ```
-
 <br>
 
 > **Note:** These libraries are required for native display and database support. Installation will fail without them.
 
 <br> 
 
+
 ### <u>Final Installation</u>
+
+**Option 1 — Install script (prebuilt binary)**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kartik-2239/lightcode/main/install.sh | bash
+```
+Pin a specific version or pick the install dir:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kartik-2239/lightcode/main/install.sh | bash -s -- --version v1.2.3 --bin-dir ~/.bin
+```
+
+**Option 2 — `go install` (build from source)**
 ```bash
 go install github.com/Kartik-2239/lightcode/cmd/lightcode@latest
 ```
@@ -91,44 +102,20 @@ On first run, Lightcode creates `~/.lightcode/` with a default `config.json`. If
 
 ### Codex OAuth
 
-Lightcode can use your existing Codex ChatGPT login instead of an OpenAI API key.
+Run `/login` in the TUI and choose `codex` to start the login flow for codex.
+After login, run `/models` to use available codex models or add others in the config files.
 
-1. Sign in with the Codex CLI:
-
-```bash
-codex login
-```
-
-2. Make sure Codex is using file-based credential storage if your machine does not have `~/.codex/auth.json`:
-
-```toml
-# ~/.codex/config.toml
-cli_auth_credentials_store = "file"
-```
-
-3. Start Lightcode and select `Codex` during onboarding, or run `/login` in the TUI and choose `codex` to launch `codex login`. After login, open `/models` and choose a model from the `codex auth` provider.
-
-Use `/effort` with Codex auth models to set reasoning effort: `low`, `medium`, `high`, or `extra high` (`xhigh` on the wire).
-
-Lightcode imports ChatGPT OAuth tokens from `${CODEX_HOME:-~/.codex}/auth.json` into `~/.lightcode/auth.json` under the `codex` provider. Treat both files like passwords and do not commit or share them.
-
-If a request fails with `token_invalidated` or `refresh_token_invalidated`, run `/login` and choose `codex` again. Lightcode clears its imported Codex token, runs `codex logout`, launches a fresh `codex login`, and re-imports the refreshed auth cache.
+If you have codex logged in on your coputer then you can select codex defined config in the onboarding menu.
 
 ### GitHub Copilot OAuth
 
-Run `/login` in the TUI and choose `copilot` to start GitHub's device login flow. Lightcode opens `https://github.com/login/device`, shows the user code in the chat, polls until GitHub accepts the authorization, then saves the access token under the `copilot` provider.
+Run `/login` in the TUI and choose `copilot` to start login flow for copilot.
+After login, run `/models` to use available copilot models or add others in the config files.
 
-After login, open `/models` and choose a model from the `copilot auth` provider. Lightcode shows the same picker labels used by Copilot and maps them to the underlying model IDs internally:
-
-- `Auto`
-- `GPT-5.4 mini (default)`
-- `GPT-5 mini`
-- `Claude Haiku 4.5`
-- `Gemini 3.1 Pro (Preview)`
 
 Run `/logout` and choose `copilot` to remove the saved token and any selected Copilot model.
 
-Copilot OAuth uses GitHub's documented device flow. Copilot model access uses GitHub Copilot service endpoints and can change outside Lightcode's control. Treat `~/.lightcode/auth.json` like a password and do not commit or share it.
+Copilot model access uses GitHub Copilot service endpoints and can change outside Lightcode's control. Treat `~/.lightcode/auth.json` like a password and do not commit or share it.
 
 
 ## Configuration
