@@ -10,8 +10,9 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-black?style=flat-square" /></a>
 </p>
 
-https://github.com/user-attachments/assets/af16a300-a84a-41b2-9346-e3940e087986
-
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/af16a300-a84a-41b2-9346-e3940e087986" controls width="600"></video>
+</p>
 ---
 
 ## What is Lightcode?
