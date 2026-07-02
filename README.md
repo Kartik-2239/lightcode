@@ -59,6 +59,18 @@ sudo zypper install libX11-devel libXext-devel libXi-devel sqlite3-devel
 <br> 
 
 ### <u>Final Installation</u>
+
+**Option 1 — Install script (prebuilt binary)**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kartik-2239/lightcode/main/install.sh | bash
+```
+Pin a specific version or pick the install dir:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kartik-2239/lightcode/main/install.sh | bash -s -- --version v1.2.3 --bin-dir ~/.bin
+```
+The script downloads the right prebuilt binary for your platform, verifies its SHA-256, and puts it on your `PATH` (`~/.local/bin` by default, falls back to `/usr/local/bin`). On platforms without a prebuilt build (e.g. macOS Intel), it falls back to `go install` if Go is available.
+
+**Option 2 — `go install` (build from source)**
 ```bash
 go install github.com/Kartik-2239/lightcode/cmd/lightcode@latest
 ```
