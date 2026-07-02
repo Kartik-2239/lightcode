@@ -207,3 +207,8 @@ Skills give the agent domain-specific context and significantly improve response
 ```
 
 You can also point `skills_path` in `config.json` to any other directory on your system.
+
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md).
