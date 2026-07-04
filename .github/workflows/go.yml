@@ -68,21 +68,21 @@ jobs:
           libxkbcommon-dev \
           xorg-dev
 
-      - name: Install upx for macos and linux 
-        if: matrix.goos != 'windows'
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y upx-ucl || sudo apt-get install -y upx
-          elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            brew install upx
-          fi
+      # - name: Install upx for macos and linux 
+      #   if: matrix.goos != 'windows'
+      #   run: |
+      #     if [[ "$RUNNER_OS" == "Linux" ]]; then
+      #       sudo apt-get update
+      #       sudo apt-get install -y upx-ucl || sudo apt-get install -y upx
+      #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
+      #       brew install upx
+      #     fi
 
-      - name: Install upx for windows
-        if: matrix.goos == 'windows'
-        shell: powershell
-        run: |
-          choco install upx -y
+      # - name: Install upx for windows
+      #   if: matrix.goos == 'windows'
+      #   shell: powershell
+      #   run: |
+      #     choco install upx -y
 
       - name: Build
         run: go build -trimpath -ldflags="-s -w" -o dist/${{ matrix.binary }} ./cmd/lightcode
@@ -90,8 +90,8 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
-      - name: Compress binary
-        run: upx --best --lzma dist/${{ matrix.binary }}
+      # - name: Compress binary
+      #   run: upx --best --lzma dist/${{ matrix.binary }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
