@@ -67,7 +67,6 @@ jobs:
           libx11-dev \
           libxkbcommon-dev \
           xorg-dev
-            - name: Install UPX
 
       - name: Install upx for macos and linux 
         if: matrix.goos != 'windows'
