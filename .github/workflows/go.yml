@@ -85,11 +85,7 @@ jobs:
           choco install upx -y
 
       - name: Build
-        run: go build \
-              -trimpath \
-              -ldflags="-s -w" \
-              -o dist/${{ matrix.binary }} \
-              ./cmd/lightcode
+        run: go build -trimpath -ldflags="-s -w" -o dist/${{ matrix.binary }} ./cmd/lightcode
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
