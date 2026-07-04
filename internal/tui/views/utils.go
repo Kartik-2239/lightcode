@@ -48,10 +48,15 @@ func renderStatusLine(model api.ModelInfo, usedTokens int64, width int, git stat
 	} else {
 		parts = append(parts, "No model")
 	}
+	percentage_used := float64(usedTokens) / float64(contextWindowForModel(model)) * 100
+	if percentage_used > 100 {
+		percentage_used = 100
+	}
 	parts = append(parts, git.Branch)
 	parts = append(parts, git.Changes)
-	parts = append(parts, FormatK(usedTokens)+" used")
-	parts = append(parts, FormatK(contextWindowForModel(model))+" window")
+	parts = append(parts, fmt.Sprintf("%.1f%% /%s", percentage_used, FormatK(contextWindowForModel(model))))
+	// parts = append(parts, FormatK(usedTokens)+" used")
+	// parts = append(parts, FormatK(contextWindowForModel(model))+" window")
 
 	line := strings.Join(parts, " · ")
 	if width > 0 && lipgloss.Width(line) > width {

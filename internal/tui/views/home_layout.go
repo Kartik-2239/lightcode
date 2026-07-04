@@ -95,10 +95,7 @@ func (m model) View() tea.View {
 	if m.islistSessionWin {
 		return m.listSession.View()
 	}
-	m.viewport.SetContent(
-		// m.currentSession.ID +
-		// "\n" +
-		renderMessages(m.messages, m.width))
+	m.viewport.SetContent(renderMessages(m.messages, m.width))
 
 	sections := make([]string, 0, 5)
 	sections = append(sections, m.viewport.View())
@@ -120,6 +117,16 @@ func (m model) View() tea.View {
 		}
 		sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, images...))
 
+	}
+
+	if m.isGenerating || m.isCompacting {
+		if m.showEscMsg {
+			sections = append(sections, m.spinner.View()+lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(" Press Esc again to cancel..."))
+		} else if m.isCompacting {
+			sections = append(sections, m.spinner.View()+" Compacting...")
+		} else {
+			sections = append(sections, m.spinner.View()+" Generating...")
+		}
 	}
 
 	sections = append(sections, lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(shortenDir(m.currentSession.Directory)))
@@ -162,16 +169,6 @@ func (m model) View() tea.View {
 		currentModel = m.modelsList[m.modelsListIndex]
 	}
 	sections = append(sections, renderStatusLine(currentModel, m.currentContextSize, m.width, m.gitStatus))
-
-	if m.isGenerating || m.isCompacting {
-		if m.showEscMsg {
-			sections = append(sections, m.spinner.View()+lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(" Press Esc again to cancel..."))
-		} else if m.isCompacting {
-			sections = append(sections, m.spinner.View()+" Compacting...")
-		} else {
-			sections = append(sections, m.spinner.View()+" Generating...")
-		}
-	}
 
 	v := tea.NewView(strings.Join(sections, "\n"))
 	c := tea.NewCursor(wrappedCursorPosition(m.textarea.Value(), m.textarea.Line(), m.textarea.Column(), m.textarea.Width()))
