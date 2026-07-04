@@ -1,3 +1,5 @@
+
+
 <h1 align="center">Lightcode</h1>
 <p align="center">A lightweight terminal coding agent written in Go</p>
 
@@ -8,8 +10,9 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-black?style=flat-square" /></a>
 </p>
 
-![Lightcode demo](assets/lightcode.gif)
-
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/af16a300-a84a-41b2-9346-e3940e087986" controls width="600"></video>
+</p>
 ---
 
 ## What is Lightcode?
