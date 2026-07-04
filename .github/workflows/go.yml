@@ -26,7 +26,7 @@ jobs:
           # can't find a runner immediately...duh(idk how long to wait)
           - goos: darwin
             goarch: amd64
-            runner: macos-13
+            runner: macos-15-intel
             binary: lightcode-darwin-amd64
 
           - goos: darwin
@@ -42,7 +42,7 @@ jobs:
           # can't find a runner immediately (idk how long to wait) 
           - goos: windows
             goarch: arm64
-            runner: windows-arm64-latest
+            runner: windows-11-arm
             binary: lightcode-windows-amd64.exe
 
     runs-on: ${{ matrix.runner }}
