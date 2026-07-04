@@ -11,14 +11,14 @@ import (
 func CreateTodo(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	raw, ok := args["descriptions"].([]any)
 	if !ok {
-		return ToolResponse{Content: "Error: descriptions is required and must be an array of strings"}, nil
+		return ToolResponse{Content: "Error: descriptions is required and must be an array of strings", Printable: "Error: descriptions is required and must be an array of strings"}, nil
 	}
 
 	descriptions := make([]string, 0, len(raw))
 	for _, item := range raw {
 		s, ok := item.(string)
 		if !ok {
-			return ToolResponse{Content: "Error: each description must be a string"}, nil
+			return ToolResponse{Content: "Error: each description must be a string", Printable: "Error: each description must be a string"}, nil
 		}
 		descriptions = append(descriptions, s)
 	}
@@ -29,9 +29,9 @@ func CreateTodo(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	}
 	result := database.Model(&models.Session{}).Where("id = ?", ctx.SessionID).Update("to_do_list", models.EncodeToDoList(todos))
 	if result.Error != nil {
-		return ToolResponse{Content: "Error: failed to update todo list"}, nil
+		return ToolResponse{Content: "Error: failed to update todo list", Printable: "Error: failed to update todo list"}, nil
 	}
-	return ToolResponse{Content: "Todo list Created successfully"}, nil
+	return ToolResponse{Content: "Todo list Created successfully", Printable: "Todo list Created successfully"}, nil
 }
 
 func UpdateTodo(ctx ToolContext, args map[string]any) (ToolResponse, error) {
@@ -40,34 +40,36 @@ func UpdateTodo(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	switch v := args["index"].(type) {
 	case float64:
 		if v != math.Trunc(v) || v < 0 || v > float64(math.MaxInt) {
-			return ToolResponse{Content: "Error: index is required and must be a non-negative integer"}, nil
+			return ToolResponse{Content: "Error: index is required and must be a non-negative integer", Printable: "Error: index is required and must be a non-negative integer"}, nil
 		}
 		index = int(v)
 	case int:
 		if v < 0 {
-			return ToolResponse{Content: "Error: index is required and must be a non-negative integer"}, nil
+			return ToolResponse{Content: "Error: index is required and must be a non-negative integer", Printable: "Error: index is required and must be a non-negative integer"}, nil
 		}
 		index = v
 	default:
-		return ToolResponse{Content: "Error: index is required and must be an integer"}, nil
+		return ToolResponse{Content: "Error: index is required and must be an integer", Printable: "Error: index is required and must be an integer"}, nil
 	}
 	completed, ok := args["completed"].(bool)
 	if !ok {
-		return ToolResponse{Content: "Error: completed is required and must be a boolean"}, nil
+		return ToolResponse{Content: "Error: completed is required and must be a boolean", Printable: "Error: completed is required and must be a boolean"}, nil
 	}
 	database, _ := db.Connect()
 	var session models.Session
 	database.Model(&models.Session{}).Where("id = ?", ctx.SessionID).First(&session)
 	todos := models.DecodeToDoList(session.ToDoList)
 	if index < 0 || index >= len(todos) {
-		return ToolResponse{Content: fmt.Sprintf("Error: index %d is out of range (list has %d items)", index, len(todos))}, nil
+		msg := fmt.Sprintf("Error: index %d is out of range (list has %d items)", index, len(todos))
+		return ToolResponse{Content: msg, Printable: msg}, nil
 	}
 	todos[index] = models.ToDo{Index: index, Description: todos[index].Description, Completed: completed}
 	result := database.Model(&models.Session{}).Where("id = ?", ctx.SessionID).Update("to_do_list", models.EncodeToDoList(todos))
 	if result.Error != nil {
-		return ToolResponse{Content: "Error: failed to update todo list"}, nil
+		return ToolResponse{Content: "Error: failed to update todo list", Printable: "Error: failed to update todo list"}, nil
 	}
-	return ToolResponse{Content: "Todo updated successfully: " + models.EncodeToDoList(todos)}, nil
+	msg := "Todo updated successfully: " + models.EncodeToDoList(todos)
+	return ToolResponse{Content: msg, Printable: msg}, nil
 }
 
 func init() {

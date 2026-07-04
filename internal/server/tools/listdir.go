@@ -10,16 +10,16 @@ import (
 func ListDir(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	path_, ok := args["path"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: path is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: path is required and must be a string", Printable: "Error: path is required and must be a string"}, nil
 	}
 	resolved, err := ValidatePath(ctx, path_)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, nil
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, nil
 	}
 	path_ = resolved
 	entries, err := os.ReadDir(path_)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, err
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, err
 	}
 
 	var result string
@@ -35,7 +35,7 @@ func ListDir(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 			}
 		}
 	}
-	return ToolResponse{Content: result}, nil
+	return ToolResponse{Content: result, Printable: result}, nil
 }
 
 func init() {

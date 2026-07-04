@@ -51,7 +51,7 @@ Rules to follow :-
 func Question(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	rawQuestions, ok := args["question"].([]any)
 	if !ok {
-		return ToolResponse{Content: "Error: question must be an array of question objects"}, nil
+		return ToolResponse{Content: "Error: question must be an array of question objects", Printable: "Error: question must be an array of question objects"}, nil
 	}
 
 	questions := make([]QuestionItem, 0, len(rawQuestions))
@@ -76,12 +76,13 @@ func Question(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	}
 
 	if len(questions) == 0 {
-		return ToolResponse{Content: "Error: no valid questions provided"}, nil
+		return ToolResponse{Content: "Error: no valid questions provided", Printable: "Error: no valid questions provided"}, nil
 	}
 
 	out, err := json.Marshal(questions)
 	if err != nil {
-		return ToolResponse{Content: fmt.Sprintf("Error: failed to encode questions: %v", err)}, nil
+		msg := fmt.Sprintf("Error: failed to encode questions: %v", err)
+		return ToolResponse{Content: msg, Printable: msg}, nil
 	}
 
 	var sb strings.Builder
@@ -93,5 +94,6 @@ func Question(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 		sb.WriteString("\n")
 	}
 	_ = out
-	return ToolResponse{Content: sb.String()}, nil
+	content := sb.String()
+	return ToolResponse{Content: content, Printable: content}, nil
 }

@@ -9,26 +9,26 @@ import (
 func Grep(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	pattern, ok := args["pattern"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: pattern is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: pattern is required and must be a string", Printable: "Error: pattern is required and must be a string"}, nil
 	}
 
 	path, ok := args["path"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: path is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: path is required and must be a string", Printable: "Error: path is required and must be a string"}, nil
 	}
 	resolved, err := ValidatePath(ctx, path)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, nil
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, nil
 	}
 	path = resolved
 
 	include, ok := args["include"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: include is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: include is required and must be a string", Printable: "Error: include is required and must be a string"}, nil
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return ToolResponse{Content: "Error: path does not exist: " + path}, nil
+		return ToolResponse{Content: "Error: path does not exist: " + path, Printable: "Error: path does not exist: " + path}, nil
 	}
 
 	cmd := exec.Command("grep", "-r", "-l", "--include="+include, pattern, path)
@@ -38,19 +38,19 @@ func Grep(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			if exitError.ExitCode() == 1 {
-				return ToolResponse{Content: "Error: No matches found"}, nil
+				return ToolResponse{Content: "Error: No matches found", Printable: "Error: No matches found"}, nil
 			}
-			return ToolResponse{Content: "Error: grep error: " + string(output)}, nil
+			return ToolResponse{Content: "Error: grep error: " + string(output), Printable: "Error: grep error: " + string(output)}, nil
 		}
-		return ToolResponse{Content: "Error: failed to execute grep: " + err.Error()}, err
+		return ToolResponse{Content: "Error: failed to execute grep: " + err.Error(), Printable: "Error: failed to execute grep: " + err.Error()}, err
 	}
 
 	result := strings.TrimSpace(string(output))
 	if result == "" {
-		return ToolResponse{Content: "Error: No matches found"}, nil
+		return ToolResponse{Content: "Error: No matches found", Printable: "Error: No matches found"}, nil
 	}
 
-	return ToolResponse{Content: result}, nil
+	return ToolResponse{Content: result, Printable: result}, nil
 }
 
 func init() {

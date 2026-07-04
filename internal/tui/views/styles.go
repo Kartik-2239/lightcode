@@ -2,11 +2,17 @@ package views
 
 import "charm.land/lipgloss/v2"
 
+// Brand theme palette (top -> bottom gradient)
+const (
+	themeTop     = "#2ECAF8" // RGB 46, 202, 248
+	themeMiddle  = "#2CD5CF" // RGB 44, 213, 207
+	themeBottom  = "#22DA9C" // RGB 34, 218, 156
+	themeSurface = "#0F2530" // dark surface tinted toward the theme
+)
+
 var (
-	styleDot        = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-	styleToolName   = lipgloss.NewStyle().Bold(true)
-	styleTree       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	styleUser       = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true).Background(lipgloss.Color("236")).Margin(1, 0).AlignVertical(lipgloss.Center)
+	// styleToolName   = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Bold(true)
+	styleUser       = lipgloss.NewStyle().Foreground(lipgloss.Color(themeTop)).Bold(true).Background(lipgloss.Color(themeSurface)).Margin(1, 0).AlignVertical(lipgloss.Center).PaddingBottom(1).PaddingTop(1)
 	styleThink      = lipgloss.NewStyle().Foreground(lipgloss.BrightBlack).Bold(false)
 	styleResultText = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 	styleAdded      = lipgloss.NewStyle().
@@ -17,14 +23,17 @@ var (
 			Foreground(lipgloss.Color("#ffdcd7")).
 			Background(lipgloss.Color("#3d1a1f")).
 			PaddingLeft(1)
-	styleTodoTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
+	styleTodoTitle = lipgloss.NewStyle().Foreground(lipgloss.Color(themeTop)).Bold(true)
 	styleTodoEmpty = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
 	styleTodoDone  = lipgloss.NewStyle().Foreground(lipgloss.Color("247")).Strikethrough(true)
-	styleTodoOpen  = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
+	styleTodoOpen  = lipgloss.NewStyle().Foreground(lipgloss.Color(themeBottom))
 	styleTodoBox   = lipgloss.NewStyle().
 			Padding(0, 1).
 			MarginLeft(2)
-	styleQuestionHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Bold(true)
+	styleQuestionHeader = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Bold(true)
 	styleOptionNormal   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	styleOptionSelected = lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Bold(true)
+	styleOptionSelected = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Bold(true)
+
+	styleToolResult = lipgloss.NewStyle().Foreground(lipgloss.Color("#93f1f8")).Background(lipgloss.Color("#243d3f"))
+	styleToolName   = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Background(lipgloss.Color("#243d3f")).PaddingLeft(1).Bold(true)
 )

@@ -28,6 +28,7 @@ type ToolDef struct {
 
 type ToolResponse struct {
 	Content     string
+	Printable   string
 	CodeChanges []string
 }
 
@@ -50,7 +51,7 @@ func Execute(name string, ctx ToolContext, args map[string]any) (ToolResponse, e
 	mu.RUnlock()
 
 	if fn == nil {
-		return ToolResponse{Content: "Error: tool not found"}, nil
+		return ToolResponse{Content: "Error: tool not found", Printable: "Error: tool not found"}, nil
 	}
 
 	return fn(ctx, args)

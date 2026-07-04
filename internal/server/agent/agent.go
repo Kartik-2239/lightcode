@@ -256,10 +256,10 @@ func (a *Agent) Run(ctx context.Context, model config.ResModel, prompt string, b
 					ch <- models.StoredMessageData{Role: "error", Content: fmt.Sprintf("Tool '%s' failed: %v", tc.Name, err)}
 					continue
 				}
-				ch <- models.StoredMessageData{Role: "tool_call", Content: result.Content, CodeChanges: result.CodeChanges, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}
+				ch <- models.StoredMessageData{Role: "tool_call", Content: result.Printable, CodeChanges: result.CodeChanges, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}
 				toolMsg := models.Message{
 					SessionID: session_id,
-					Data:      models.EncodeMessageData(models.StoredMessageData{Role: "tool_call", Content: result.Content, CodeChanges: result.CodeChanges, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}),
+					Data:      models.EncodeMessageData(models.StoredMessageData{Role: "tool_call", Content: result.Printable, CodeChanges: result.CodeChanges, ToolCalls: []models.StoredToolCall{{ID: tc.ID, Name: tc.Name, Arguments: tc.Arguments}}}),
 				}
 				database.Create(&toolMsg)
 				if config.Debug {

@@ -8,20 +8,20 @@ import (
 func Edit(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	path, ok := args["filePath"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: filePath is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: filePath is required and must be a string", Printable: "Error: filePath is required and must be a string"}, nil
 	}
 	resolved, err := ValidatePath(ctx, path)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, nil
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, nil
 	}
 	path = resolved
 	oldString, ok := args["oldString"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: oldString is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: oldString is required and must be a string", Printable: "Error: oldString is required and must be a string"}, nil
 	}
 	newString, ok := args["newString"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: newString is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: newString is required and must be a string", Printable: "Error: newString is required and must be a string"}, nil
 	}
 	copyNewString := newString
 
@@ -40,27 +40,28 @@ func Edit(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 			n = 1
 		}
 	} else {
-		return ToolResponse{Content: "Error: replaceAll is required and must be an integer"}, nil
+		return ToolResponse{Content: "Error: replaceAll is required and must be an integer", Printable: "Error: replaceAll is required and must be an integer"}, nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, err
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, err
 	}
 	content := string(data)
 
 	// Check if oldString exists
 	if !strings.Contains(content, oldString) {
-		return ToolResponse{Content: "Old string not found in file"}, nil
+		return ToolResponse{Content: "Old string not found in file", Printable: "Old string not found in file"}, nil
 	}
 
 	newContent := strings.Replace(content, oldString, newString, n)
 	err = os.WriteFile(path, []byte(newContent), 0644)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, err
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, err
 	}
 	// new_old, new_new := string_differentiator(oldString, copyNewString)
-	return ToolResponse{Content: strings.Join([]string{"file_path: " + path, "old_string: ", oldString, "========", "new_string: ", copyNewString}, "\n"), CodeChanges: []string{"---" + oldString, "+++" + copyNewString}}, nil
+	msg := strings.Join([]string{"file_path: " + path, "old_string: ", oldString, "========", "new_string: ", copyNewString}, "\n")
+	return ToolResponse{Content: msg, Printable: msg, CodeChanges: []string{"---" + oldString, "+++" + copyNewString}}, nil
 }
 
 func init() {

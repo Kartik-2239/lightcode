@@ -12,21 +12,21 @@ import (
 func Skill(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	skillName, ok := args["skillName"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: skillName is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: skillName is required and must be a string", Printable: "Error: skillName is required and must be a string"}, nil
 	}
 	skillPath := config.SkillsPath()
 	if skillPath == "" {
-		return ToolResponse{Content: "Skill path not found"}, nil
+		return ToolResponse{Content: "Skill path not found", Printable: "Skill path not found"}, nil
 	}
 	skillFilePath := filepath.Join(skillPath, skillName, "SKILL.md")
 	data, err := os.ReadFile(skillFilePath)
 	if err != nil {
-		return ToolResponse{Content: "Skill not found"}, err
+		return ToolResponse{Content: "Skill not found", Printable: "Skill not found"}, err
 	}
 	skillDir := filepath.Join(skillPath, skillName)
 	entries, err := os.ReadDir(skillDir)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, err
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, err
 	}
 	skill_files := []string{}
 	for _, entry := range entries {
@@ -44,7 +44,7 @@ func Skill(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	skill := re.ReplaceAllString(string(data), "")
 	skillFilesBlock := "\n<skill_files>\n" + strings.Join(skill_files, "\n") + "\n</skill_files>"
 	skill = "<skill_content name=\"" + skillName + "\">" + skill + skillFilesBlock + "</skill_content>"
-	return ToolResponse{Content: skill}, nil
+	return ToolResponse{Content: skill, Printable: skill}, nil
 }
 
 func init() {

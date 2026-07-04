@@ -25,7 +25,7 @@ func withoutEphemeralTodoStatus(msgs []models.Message) []models.Message {
 	return out
 }
 
-func renderTodoStatusBlock(dot string, todos []models.ToDo, width int) string {
+func renderTodoStatusBlock(todos []models.ToDo, width int) string {
 	title := styleTodoTitle.Render("Todo list")
 	boxStyle := styleTodoBox
 	if width > 8 {
@@ -42,14 +42,14 @@ func renderTodoStatusBlock(dot string, todos []models.ToDo, width int) string {
 				mark = lipgloss.NewStyle().Foreground(lipgloss.Color("247")).Render("[x] ")
 				line = styleTodoDone.Render(t.Description)
 			}
-			inner.WriteString(mark + line + "\n")
+			_, _ = inner.WriteString(mark + line + "\n")
 		}
 	}
 	boxed := boxStyle.Render(strings.TrimSuffix(inner.String(), "\n"))
-	return dot + " " + title + "\n" + boxed
+	return title + "\n" + boxed
 }
 
-func formatToolCall(tc models.StoredToolCall) string {
+func formatToolCall(tc models.StoredToolCall, width int) string {
 	var args map[string]interface{}
 	err := json.Unmarshal([]byte(tc.Arguments), &args)
 	values := ""
@@ -70,10 +70,7 @@ func formatToolCall(tc models.StoredToolCall) string {
 	if err != nil {
 		return styleToolName.Render(tc.Name) + "()"
 	}
-	// if tc.Name == "write_file" || tc.Name == "edit" || tc.Name == "skill" {
-	// 	return styleToolName.Render(tc.Name)
-	// }
-	return styleToolName.Render(tc.Name) + "(" + styleTree.Render(values) + ")"
+	return styleToolName.Width(width).Render(tc.Name) + "(" + values + ")"
 }
 
 func formatToolResult(content string, codeChanges []string, width int, tc models.StoredToolCall) string {
@@ -82,7 +79,7 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 		return styleResultText.Render("(no output)")
 	}
 	if strings.Contains(tc.Name, "todo") {
-		return renderTodoStatusBlock(styleDot.Render("●"), models.DecodeToDoList(content), width)
+		return renderTodoStatusBlock(models.DecodeToDoList(content), width)
 	}
 	if len(codeChanges) == 0 {
 		lines := strings.Split(content, "\n")
@@ -94,8 +91,7 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 		} else {
 			content = strings.Replace(strings.Join(lines, "\n"), home, "~", 0)
 		}
-
-		return styleTree.Render(lines[0]+"\n") + styleTree.PaddingLeft(3).Render(content) //+"\n...")
+		return styleToolResult.Width(width).PaddingLeft(1).MarginBottom(1).Render(content)
 	}
 
 	var sb strings.Builder
@@ -260,8 +256,7 @@ func renderMessages(msgs []models.Message, width int) string {
 	}
 	r, _ := glamour.NewTermRenderer(glamour.WithWordWrap(width), glamour.WithStylesFromJSONBytes(lightcodeGlamourStyle))
 
-	dot := styleDot.Render("●")
-	tree := styleTree.Render("└─")
+	// tree := styleTree.Render("└─")
 
 	type callKey struct {
 		msgID string
@@ -310,35 +305,24 @@ func renderMessages(msgs []models.Message, width int) string {
 					if len(matchedContent) > width {
 						matchedContent = "Thinking: " + matchedContent
 						formattedData := styleThink.PaddingLeft(1).Width(width-1).Render(matchedContent[:width-1]) + styleThink.Width(width-2).PaddingLeft(2).Width(width).Render(matchedContent[width-1:])
-						lines = append(lines, dot+formattedData)
+						lines = append(lines, formattedData)
 					} else {
 						lines = append(lines, styleThink.Width(width).Render(matchedContent))
 					}
 				}
 				if content != "" {
 					if !strings.HasPrefix(content, "<memory>") && !strings.HasSuffix(content, "</memory>") {
-						if len(content) > width {
-
-							// rest := styleThink.Width(width).UnsetMaxWidth().Render(strings.ReplaceAll(content, "\n", "\n  "))
-							// lines = append(lines, dot+" "+rest)
-							lines = append(lines, dot+" "+styleThink.Width(width).Render(content))
-						} else {
-							lines = append(lines, dot+" "+styleThink.Width(width).Render(content))
-						}
+						lines = append(lines, styleThink.Width(width).Render(content))
 					}
 
 				}
 
-				// for _, tc := range d.ToolCalls {
-				// 	lines = append(lines, dot+" "+formatToolCall(tc))
-				// }
-
 			case "tool_call":
 				for _, toolcall := range d.ToolCalls {
-					lines = append(lines, dot+" "+formatToolCall(toolcall))
-					resultSummary := formatToolResult(content, d.CodeChanges, width-4, toolcall)
+					lines = append(lines, formatToolCall(toolcall, width))
+					resultSummary := formatToolResult(content, d.CodeChanges, width, toolcall)
 					if resultSummary != "" {
-						lines = append(lines, tree+" "+resultSummary)
+						lines = append(lines, resultSummary)
 					}
 
 				}
@@ -346,25 +330,25 @@ func renderMessages(msgs []models.Message, width int) string {
 			case "user":
 				if !strings.HasPrefix(content, "<memory>") && !strings.HasSuffix(content, "</memory>") {
 
-					lines = append(lines, styleUser.Width(width).Render("❯ "+content))
+					lines = append(lines, styleUser.Width(width).Render(" "+content))
 				}
 			case "question":
 				qs := parseQuestions(content)
 				for _, q := range qs {
 					line := styleQuestionHeader.Render("? " + q.question)
 					if len(q.options) > 0 {
-						line += styleTree.Render(" [" + strings.Join(q.options, ", ") + "]")
+						line += " [" + strings.Join(q.options, ", ") + "]"
 					}
 					lines = append(lines, line)
 				}
 			case "todo_status":
 				todos := models.DecodeToDoList(content)
-				lines = append(lines, renderTodoStatusBlock(dot, todos, width))
+				lines = append(lines, renderTodoStatusBlock(todos, width))
 			}
 		} else if d.Role == "assistant" && len(d.ToolCalls) > 0 {
 			for i, tc := range d.ToolCalls {
 				if !hasResult[callKey{fmt.Sprintf("%d", msg.ID), i}] {
-					lines = append(lines, dot+" "+formatToolCall(tc))
+					lines = append(lines, formatToolCall(tc, width))
 				}
 			}
 		}

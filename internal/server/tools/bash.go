@@ -16,7 +16,7 @@ func Bash(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	if err != nil {
 		return ToolResponse{Content: "Error: " + err.Error() + "\n" + string(output)}, nil
 	}
-	return ToolResponse{Content: string(output)}, nil
+	return ToolResponse{Content: string(output), Printable: bash_response_formatter(string(output))}, nil
 }
 
 func init() {
@@ -43,4 +43,8 @@ func init() {
 		},
 	}, Bash)
 
+}
+
+func bash_response_formatter(output string) string {
+	return "printable" + output
 }

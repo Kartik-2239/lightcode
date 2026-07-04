@@ -32,7 +32,7 @@ func hideCreds(data string) string {
 func ReadFile(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	path, ok := args["path"].(string)
 	if !ok {
-		return ToolResponse{Content: "Error: path is required and must be a string"}, nil
+		return ToolResponse{Content: "Error: path is required and must be a string", Printable: "Error: path is required and must be a string"}, nil
 	}
 	offset, ok := args["offset"].(int)
 	if !ok {
@@ -44,7 +44,7 @@ func ReadFile(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	}
 	resolved, err := ValidatePath(ctx, path)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, nil
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, nil
 	}
 	path = resolved
 	// gitignore, err := os.ReadFile(filepath.Join(ctx.WorkingDirectory, ".gitignore"))
@@ -58,11 +58,11 @@ func ReadFile(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	// }
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ToolResponse{Content: "Error: " + err.Error()}, err
+		return ToolResponse{Content: "Error: " + err.Error(), Printable: "Error: " + err.Error()}, err
 	}
 	if strings.HasSuffix(path, ".env") {
 		safeData := hideCreds(string(data))
-		return ToolResponse{Content: safeData}, nil
+		return ToolResponse{Content: safeData, Printable: safeData}, nil
 	}
 	content := string(data)
 	lines := strings.Split(content, "\n")
@@ -72,7 +72,7 @@ func ReadFile(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	}
 	lines = lines[:limit]
 	content = strings.Join(lines, "\n")
-	return ToolResponse{Content: content}, nil
+	return ToolResponse{Content: content, Printable: content}, nil
 }
 
 func init() {
