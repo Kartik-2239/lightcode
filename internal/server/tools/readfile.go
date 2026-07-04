@@ -72,7 +72,7 @@ func ReadFile(ctx ToolContext, args map[string]any) (ToolResponse, error) {
 	}
 	lines = lines[:limit]
 	content = strings.Join(lines, "\n")
-	return ToolResponse{Content: content, Printable: content}, nil
+	return ToolResponse{Content: content, Printable: ""}, nil
 }
 
 func init() {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"charm.land/glamour/v2"
@@ -52,25 +53,32 @@ func renderTodoStatusBlock(todos []models.ToDo, width int) string {
 func formatToolCall(tc models.StoredToolCall, width int) string {
 	var args map[string]interface{}
 	err := json.Unmarshal([]byte(tc.Arguments), &args)
-	values := ""
-	for key, value := range args {
-		cur := fmt.Sprintf("%v", value)
+	if err != nil {
+		return styleToolName.Render(tc.Name + "()")
+	}
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	values := make([]string, 0, len(keys))
+	for _, key := range keys {
+		cur := fmt.Sprintf("%v", args[key])
 		if filepath.IsAbs(cur) {
 			home, _ := os.UserHomeDir()
 			cur = strings.Replace(cur, home, "~", 1)
 		}
-		if key == "path" || key == "filePath" {
-			values = values + strings.TrimSpace(cur)
+		cur = strings.TrimSpace(cur)
+		if key == "path" || key == "filePath" || key == "command" {
+			values = append(values, cur)
+		} else {
+			values = append(values, fmt.Sprintf("%s=%s", key, cur))
 		}
-		if key == "command" {
-			values = values + strings.TrimSpace(cur)
-		}
+	}
 
-	}
-	if err != nil {
-		return styleToolName.Render(tc.Name) + "()"
-	}
-	return styleToolName.Width(width).Render(tc.Name) + "(" + values + ")"
+	return styleToolName.Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
 }
 
 func formatToolResult(content string, codeChanges []string, width int, tc models.StoredToolCall) string {
@@ -91,7 +99,7 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 		} else {
 			content = strings.Replace(strings.Join(lines, "\n"), home, "~", 0)
 		}
-		return styleToolResult.Width(width).PaddingLeft(1).MarginBottom(1).Render(content)
+		return styleToolResult.Width(width).PaddingLeft(1).MarginBottom(1).Render("\n" + content)
 	}
 
 	var sb strings.Builder
@@ -320,11 +328,12 @@ func renderMessages(msgs []models.Message, width int) string {
 			case "tool_call":
 				for _, toolcall := range d.ToolCalls {
 					lines = append(lines, formatToolCall(toolcall, width))
-					resultSummary := formatToolResult(content, d.CodeChanges, width, toolcall)
-					if resultSummary != "" {
-						lines = append(lines, resultSummary)
+					if should_print_tool_result(toolcall.Name) {
+						resultSummary := formatToolResult(content, d.CodeChanges, width, toolcall)
+						if resultSummary != "" {
+							lines = append(lines, resultSummary)
+						}
 					}
-
 				}
 
 			case "user":
