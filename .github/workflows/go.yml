@@ -24,10 +24,10 @@ jobs:
             binary: lightcode-linux-arm64
 
           # can't find a runner immediately...duh(idk how long to wait)
-          # - goos: darwin
-          #   goarch: amd64
-          #   runner: macos-13
-          #   binary: lightcode-darwin-amd64
+          - goos: darwin
+            goarch: amd64
+            runner: macos-13
+            binary: lightcode-darwin-amd64
 
           - goos: darwin
             goarch: arm64
@@ -40,10 +40,10 @@ jobs:
             binary: lightcode-windows-amd64.exe
           
           # can't find a runner immediately (idk how long to wait) 
-          # - goos: windows
-          #   goarch: arm64
-          #   runner: windows-arm64-latest
-          #   binary: lightcode-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            runner: windows-arm64-latest
+            binary: lightcode-windows-amd64.exe
 
     runs-on: ${{ matrix.runner }}
 
@@ -67,13 +67,36 @@ jobs:
           libx11-dev \
           libxkbcommon-dev \
           xorg-dev
+            - name: Install UPX
+
+      - name: Install upx for macos and linux 
+        if: matrix.goos != 'windows'
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y upx-ucl || sudo apt-get install -y upx
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install upx
+          fi
+
+      - name: Install upx for windows
+        if: matrix.goos == 'windows'
+        shell: powershell
+        run: |
+          choco install upx -y
 
       - name: Build
-        run: go build -v -o dist/${{ matrix.binary }} ./cmd/lightcode
+        run: go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o dist/${{ matrix.binary }} \
+              ./cmd/lightcode
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
+      - name: Compress binary
+        run: upx --best --lzma dist/${{ matrix.binary }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
