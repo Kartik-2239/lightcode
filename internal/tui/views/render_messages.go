@@ -282,7 +282,7 @@ func renderMessages(msgs []models.Message, width int) string {
 	}
 
 	var lines []string
-	lines = append(lines, mascot())
+	lines = append(lines, mascot2())
 	for _, msg := range msgs {
 		d := models.DecodeMessageData(msg.Data)
 		if d.Role == "" || d.Role == "error" {
@@ -378,4 +378,18 @@ func mascot() string {
   █  █  █
  ▘▜█████▛▘▘
    ▘▘ ▝▝`)
+}
+
+func mascot2() string {
+	return strings.TrimSpace(`
+[38;2;66;195;255m    ███[0m
+[38;2;60;208;242m      ██[0m
+[38;2;54;220;228m      ██[0m
+[38;2;48;230;214m      ██[0m
+[38;2;42;239;201m      ██[0m
+[38;2;36;245;189m      ██[0m
+[38;2;30;249;176m      ██     ██[0m
+[38;2;26;252;164m       ██   ██[0m
+[38;2;24;252;154m        █████[0m
+`)
 }
