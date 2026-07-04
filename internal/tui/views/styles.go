@@ -6,6 +6,7 @@ import "charm.land/lipgloss/v2"
 const (
 	themeTop     = "#2ECAF8" // RGB 46, 202, 248
 	themeMiddle  = "#2CD5CF" // RGB 44, 213, 207
+	themeBorder  = "#20938f" // RGB 44, 213, 207
 	themeBottom  = "#22DA9C" // RGB 34, 218, 156
 	themeSurface = "#0F2530" // dark surface tinted toward the theme
 )
@@ -34,6 +35,7 @@ var (
 	styleOptionNormal   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	styleOptionSelected = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Bold(true)
 
-	styleToolResult = lipgloss.NewStyle().Foreground(lipgloss.Color("#93f1f8")).Background(lipgloss.Color("#243d3f"))
-	styleToolName   = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Background(lipgloss.Color("#243d3f")).PaddingLeft(1).Bold(true)
+	styleStatusText = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Bold(true)
+	styleToolResult = lipgloss.NewStyle().Foreground(lipgloss.Color("#93f1f8")).Background(lipgloss.Color("#243d3f")).BorderBackground(lipgloss.Color("#243d3f")).BorderForeground(lipgloss.Color(themeBorder)).PaddingLeft(1).Bold(true)
+	styleToolName   = lipgloss.NewStyle().Foreground(lipgloss.Color(themeMiddle)).Background(lipgloss.Color("#243d3f")).BorderBackground(lipgloss.Color("#243d3f")).BorderForeground(lipgloss.Color(themeBorder)).PaddingLeft(1).Bold(true)
 )

@@ -62,7 +62,7 @@ func renderStatusLine(model api.ModelInfo, usedTokens int64, width int, git stat
 	if width > 0 && lipgloss.Width(line) > width {
 		line = truncateStatusLine(line, width)
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("43")).Render(line)
+	return styleStatusText.Render(line)
 }
 
 func modelStatusName(model api.ModelInfo) string {

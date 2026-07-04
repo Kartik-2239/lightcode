@@ -50,7 +50,7 @@ func renderTodoStatusBlock(todos []models.ToDo, width int) string {
 	return title + "\n" + boxed
 }
 
-func formatToolCall(tc models.StoredToolCall, width int) string {
+func formatToolCall(tc models.StoredToolCall, width int, border bool) string {
 	var args map[string]interface{}
 	err := json.Unmarshal([]byte(tc.Arguments), &args)
 	if err != nil {
@@ -78,6 +78,23 @@ func formatToolCall(tc models.StoredToolCall, width int) string {
 		}
 	}
 
+	if border {
+		return styleToolName.Border(lipgloss.Border{
+			Top:          "─",
+			Bottom:       "─",
+			Left:         "│",
+			Right:        "│",
+			TopLeft:      "╭",
+			TopRight:     "╮",
+			BottomLeft:   "├",
+			BottomRight:  "┤",
+			MiddleLeft:   "├",
+			MiddleRight:  "┤",
+			Middle:       "┼",
+			MiddleTop:    "┬",
+			MiddleBottom: "┴",
+		}).Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
+	}
 	return styleToolName.Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
 }
 
@@ -99,7 +116,7 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 		} else {
 			content = strings.Replace(strings.Join(lines, "\n"), home, "~", 0)
 		}
-		return styleToolResult.Width(width).PaddingLeft(1).MarginBottom(1).Render("\n" + content)
+		return styleToolResult.Border(lipgloss.RoundedBorder()).BorderTop(false).Width(width).PaddingLeft(1).Render(content)
 	}
 
 	var sb strings.Builder
@@ -141,6 +158,16 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 
 	}
 	return top + lipgloss.NewStyle().Margin(2).MarginTop(0).MarginBottom(0).Render(sb.String())
+}
+
+func formatTool(tc models.StoredToolCall, width int, content string, codeChanges []string) string {
+	result := formatToolCall(tc, width, true)
+	resultSummary := formatToolResult(content, codeChanges, width, tc)
+	if resultSummary != "" {
+		result += "\n" + resultSummary
+	}
+	result += "\n"
+	return result
 }
 
 var lightcodeGlamourStyle = []byte(`{
@@ -285,7 +312,7 @@ func renderMessages(msgs []models.Message, width int) string {
 	}
 
 	var lines []string
-	lines = append(lines, mascot2())
+	lines = append(lines, mascot())
 	for _, msg := range msgs {
 		d := models.DecodeMessageData(msg.Data)
 		if d.Role == "" || d.Role == "error" {
@@ -327,13 +354,7 @@ func renderMessages(msgs []models.Message, width int) string {
 
 			case "tool_call":
 				for _, toolcall := range d.ToolCalls {
-					lines = append(lines, formatToolCall(toolcall, width))
-					if should_print_tool_result(toolcall.Name) {
-						resultSummary := formatToolResult(content, d.CodeChanges, width, toolcall)
-						if resultSummary != "" {
-							lines = append(lines, resultSummary)
-						}
-					}
+					lines = append(lines, formatTool(toolcall, width, content, d.CodeChanges))
 				}
 
 			case "user":
@@ -357,7 +378,7 @@ func renderMessages(msgs []models.Message, width int) string {
 		} else if d.Role == "assistant" && len(d.ToolCalls) > 0 {
 			for i, tc := range d.ToolCalls {
 				if !hasResult[callKey{fmt.Sprintf("%d", msg.ID), i}] {
-					lines = append(lines, formatToolCall(tc, width))
+					lines = append(lines, formatToolCall(tc, width, false))
 				}
 			}
 		}
@@ -373,16 +394,16 @@ func mascot() string {
    ▘▘ ▝▝`)
 }
 
-func mascot2() string {
-	return strings.TrimSpace(`
-[38;2;66;195;255m    ███[0m
-[38;2;60;208;242m      ██[0m
-[38;2;54;220;228m      ██[0m
-[38;2;48;230;214m      ██[0m
-[38;2;42;239;201m      ██[0m
-[38;2;36;245;189m      ██[0m
-[38;2;30;249;176m      ██     ██[0m
-[38;2;26;252;164m       ██   ██[0m
-[38;2;24;252;154m        █████[0m
-`)
-}
+// func mascot2() string {
+// 	return strings.TrimSpace(`
+// [38;2;66;195;255m    ███[0m
+// [38;2;60;208;242m      ██[0m
+// [38;2;54;220;228m      ██[0m
+// [38;2;48;230;214m      ██[0m
+// [38;2;42;239;201m      ██[0m
+// [38;2;36;245;189m      ██[0m
+// [38;2;30;249;176m      ██     ██[0m
+// [38;2;26;252;164m       ██   ██[0m
+// [38;2;24;252;154m        █████[0m
+// `)
+// }
