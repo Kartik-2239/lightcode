@@ -1,5 +1,3 @@
-
-
 <h1 align="center">Lightcode</h1>
 <p align="center">A lightweight terminal coding agent written in Go</p>
 
@@ -11,7 +9,7 @@
 </p>
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/af16a300-a84a-41b2-9346-e3940e087986" controls width="600"></video>
+  <video src="https://github.com/user-attachments/assets/3df3b74b-3c5e-4011-992b-9343f1274029" controls width="600"></video>
 </p>
 ---
 
