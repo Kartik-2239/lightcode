@@ -70,14 +70,6 @@ ext=""
 [ "$os" = "windows" ] && ext=".exe"
 asset="${INSTALL_NAME}-${os}-${arch}${ext}"
 
-# asset combos that actually have a prebuilt binary in Releases
-has_prebuilt() {
-  case "$os-$arch" in
-    linux-amd64|linux-arm64|darwin-arm64|windows-amd64) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 # --- resolve download URL ---
 if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   download_base="https://github.com/${REPO}/releases/latest/download"
@@ -130,21 +122,6 @@ choose_bindir() {
   fi
   printf '%s\n' "/usr/local/bin"
 }
-
-# --- main ---
-if ! has_prebuilt; then
-  if need_cmd go; then
-    tag="latest"
-    [ -n "$VERSION" ] && [ "$VERSION" != "latest" ] && tag="$VERSION"
-    warn "no prebuilt binary for $os-$arch; building from source with 'go install'"
-    [ "$os" = "linux" ] && warn "the Linux build needs libx11 headers (see README Prerequisites)"
-    go install "github.com/${REPO}/cmd/lightcode@${tag}"
-    note "Installed via go install to \"$(go env GOPATH)/bin\""
-    exit 0
-  fi
-  die "no prebuilt binary for $os-$arch and Go is not installed.
-Install Go 1.25+ from https://go.dev/dl/ and rerun, or build from source."
-fi
 
 download_asset "$download_base/$asset"
 binpath="$tmpdir/$asset"
