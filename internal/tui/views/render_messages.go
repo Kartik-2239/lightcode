@@ -95,7 +95,7 @@ func formatToolCall(tc models.StoredToolCall, width int, border bool) string {
 			MiddleBottom: "┴",
 		}).Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
 	}
-	return styleToolName.Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
+	return styleToolName.Border(lipgloss.RoundedBorder()).Width(width).Render(tc.Name + "(" + strings.Join(values, ", ") + ")")
 }
 
 func formatToolResult(content string, codeChanges []string, width int, tc models.StoredToolCall) string {
@@ -161,13 +161,18 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 }
 
 func formatTool(tc models.StoredToolCall, width int, content string, codeChanges []string) string {
-	result := formatToolCall(tc, width, true)
-	resultSummary := formatToolResult(content, codeChanges, width, tc)
-	if resultSummary != "" {
-		result += "\n" + resultSummary
+
+	if should_print_tool_result(tc.Name) {
+		result := formatToolCall(tc, width, true)
+		resultSummary := formatToolResult(content, codeChanges, width, tc)
+		if resultSummary != "" {
+			result += "\n" + resultSummary
+		}
+		result += "\n"
+		return result
 	}
-	result += "\n"
-	return result
+	return formatToolCall(tc, width, false) + "\n"
+
 }
 
 var lightcodeGlamourStyle = []byte(`{
