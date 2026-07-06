@@ -245,8 +245,16 @@ func wrappedCursorPosition(text string, logicalLine int, column int, width int) 
 
 func should_print_tool_result(tool_name string) bool {
 	tool_name = strings.ToLower(tool_name)
-	if tool_name == "read_file" || tool_name == "skill" || tool_name == "webfetch" {
-		return false
+	if tool_name == "edit" || tool_name == "write_file" || tool_name == "read_file" {
+		return true
 	}
-	return true
+	return false
+}
+
+func should_print_tool_name(tool_name string) bool {
+	tool_name = strings.ToLower(tool_name)
+	if tool_name == "read_file" || tool_name == "skill" || tool_name == "webfetch" {
+		return true
+	}
+	return false
 }

@@ -9,6 +9,11 @@ const (
 	themeBorder  = "#20938f" // RGB 44, 213, 207
 	themeBottom  = "#22DA9C" // RGB 34, 218, 156
 	themeSurface = "#0F2530" // dark surface tinted toward the theme
+
+	themeAdded         = "#aff5b4" // RGB 175, 245, 180
+	themeRemoved       = "#ffdcd7" // RGB 255, 220, 215
+	themeAddedBorder   = "#7bad7e" // RGB 26, 58, 42
+	themeRemovedBorder = "#e6b8b1" // RGB 61, 26, 31
 )
 
 var (
@@ -16,14 +21,24 @@ var (
 	styleUser       = lipgloss.NewStyle().Foreground(lipgloss.Color(themeTop)).Bold(true).Background(lipgloss.Color(themeSurface)).Margin(1, 0).AlignVertical(lipgloss.Center).PaddingBottom(1).PaddingTop(1)
 	styleThink      = lipgloss.NewStyle().Foreground(lipgloss.BrightBlack).Bold(false)
 	styleResultText = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
-	styleAdded      = lipgloss.NewStyle().
+
+	styleAdded = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#aff5b4")).
+			Border(lipgloss.RoundedBorder()).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderBackground(lipgloss.Color("#1a3a2a")).
+			BorderForeground(lipgloss.Color(themeAddedBorder)).
 			Background(lipgloss.Color("#1a3a2a")).
 			PaddingLeft(1)
 	styleRemoved = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ffdcd7")).
+			Border(lipgloss.RoundedBorder()).
+			BorderBackground(lipgloss.Color("#3d1a1f")).
+			BorderForeground(lipgloss.Color(themeRemovedBorder)).
+			BorderStyle(lipgloss.RoundedBorder()).
 			Background(lipgloss.Color("#3d1a1f")).
 			PaddingLeft(1)
+
 	styleTodoTitle = lipgloss.NewStyle().Foreground(lipgloss.Color(themeTop)).Bold(true)
 	styleTodoEmpty = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
 	styleTodoDone  = lipgloss.NewStyle().Foreground(lipgloss.Color("247")).Strikethrough(true)

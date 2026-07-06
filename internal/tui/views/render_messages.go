@@ -59,6 +59,15 @@ func formatToolCall(tc models.StoredToolCall, width int, border bool) string {
 
 	keys := make([]string, 0, len(args))
 	for key := range args {
+		if tc.Name == "edit" && (key != "filePath" && key != "path") {
+			continue
+		}
+		if tc.Name == "write_file" && (key != "filePath" && key != "path") {
+			continue
+		}
+		if tc.Name == "read_file" && (key != "filePath" && key != "path") {
+			continue
+		}
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -78,7 +87,7 @@ func formatToolCall(tc models.StoredToolCall, width int, border bool) string {
 		}
 	}
 
-	if border {
+	if border && tc.Name != "edit" && tc.Name != "write_file" && tc.Name != "read_file" {
 		return styleToolName.Border(lipgloss.Border{
 			Top:          "─",
 			Bottom:       "─",
@@ -119,15 +128,21 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 		return styleToolResult.Border(lipgloss.RoundedBorder()).BorderTop(false).Width(width).PaddingLeft(1).Render(content)
 	}
 
-	var sb strings.Builder
 	var oldlines []string
 	var newlines []string
 	oldlines = strings.Split(codeChanges[0], "\n")
+	if len(oldlines) == 1 && oldlines[0] == "" {
+		oldlines = []string{}
+	}
 	newlines = strings.Split(codeChanges[1], "\n")
+	if len(newlines) == 1 && newlines[0] == "" {
+		newlines = []string{}
+	}
 
-	top := lipgloss.NewStyle().Foreground(lipgloss.Red).Render(fmt.Sprintf("-%d", len(oldlines))) + " " + lipgloss.NewStyle().Foreground(lipgloss.Green).Render(fmt.Sprintf("+%d", len(newlines))) + "\n"
+	// top := lipgloss.NewStyle().Foreground(lipgloss.Red).Render(fmt.Sprintf("-%d", len(oldlines))) + " " + lipgloss.NewStyle().Foreground(lipgloss.Green).Render(fmt.Sprintf("+%d", len(newlines))) + "\n"
 	// sb.WriteString()
-
+	var removed strings.Builder
+	var added strings.Builder
 	if tc.Name == "write_file" {
 		line_limit := 20
 		if len(newlines) > line_limit {
@@ -139,40 +154,66 @@ func formatToolResult(content string, codeChanges []string, width int, tc models
 			oldlines = append(oldlines, fmt.Sprintf("...\n%d more lines", len(oldlines)))
 		}
 	}
-
-	for i, line := range oldlines {
-		if i == len(oldlines)-1 {
-			sb.WriteString(styleRemoved.Foreground(lipgloss.BrightBlack).Width(width).Render("- " + line))
-		} else {
-			sb.WriteString(styleRemoved.Width(width).Render("- " + line))
+	if len(oldlines) != 1 {
+		for i, line := range oldlines {
+			if i == len(oldlines)-1 {
+				removed.WriteString("- ")
+				removed.WriteString(line)
+			} else {
+				removed.WriteString("- ")
+				removed.WriteString(line)
+			}
+			removed.WriteString("\n")
 		}
-		sb.WriteString("\n")
 	}
-	for i, line := range newlines {
-		if i == len(newlines) {
-			sb.WriteString(styleAdded.Foreground(lipgloss.BrightBlack).Width(width).Render("+ " + line))
-		} else {
-			sb.WriteString(styleAdded.Width(width).Render("+ " + line))
+	if len(newlines) != 0 {
+		for i, line := range newlines {
+			if i == len(newlines)-1 {
+				added.WriteString("+ ")
+				added.WriteString(line)
+			} else {
+				added.WriteString("+ ")
+				added.WriteString(line)
+			}
+			added.WriteString("\n")
 		}
-		sb.WriteString("\n")
-
 	}
-	return top + lipgloss.NewStyle().Margin(2).MarginTop(0).MarginBottom(0).Render(sb.String())
+	final := ""
+	if removed.Len() > 0 {
+		if added.Len() > 0 {
+			req := styleRemoved.Width(width).BorderBottom(false).Render(strings.TrimSpace(removed.String()))
+			final += req
+		} else {
+			final += styleRemoved.Width(width).Render(strings.TrimSpace(removed.String()))
+		}
+	}
+	if added.Len() > 0 {
+		if removed.Len() > 0 {
+			final += styleAdded.Width(width).BorderTop(false).Render(strings.TrimSpace(added.String()))
+		} else {
+			req := styleAdded.Width(width).Render(strings.TrimSpace(added.String()))
+			final += req
+		}
+	}
+	return final
 }
 
 func formatTool(tc models.StoredToolCall, width int, content string, codeChanges []string) string {
+	if should_print_tool_name(tc.Name) {
+		return formatToolCall(tc, width, false) + "\n"
+	}
 
 	if should_print_tool_result(tc.Name) {
-		result := formatToolCall(tc, width, true)
-		resultSummary := formatToolResult(content, codeChanges, width, tc)
-		if resultSummary != "" {
-			result += "\n" + resultSummary
-		}
-		result += "\n"
-		return result
+		return formatToolResult(content, codeChanges, width, tc)
 	}
-	return formatToolCall(tc, width, false) + "\n"
 
+	result := formatToolCall(tc, width, true)
+	resultSummary := formatToolResult(content, codeChanges, width, tc)
+	if resultSummary != "" {
+		result += "\n" + resultSummary
+	}
+	result += "\n"
+	return result
 }
 
 var lightcodeGlamourStyle = []byte(`{
