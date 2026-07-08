@@ -1,0 +1,17 @@
+{
+  "name": "lightcodeai",
+  "version": "1.2.6",
+  "license": "MIT",
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ],
+  "scripts": {
+    "postinstall": "node ./postinstall.mjs"
+  }
+}
