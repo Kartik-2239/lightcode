@@ -129,7 +129,8 @@ func chatcompletion(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	flusher, ok := w.(http.Flusher)

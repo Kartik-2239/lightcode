@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/Kartik-2239/lightcode/internal/tui/client"
-	"golang.design/x/clipboard"
 )
 
 func parseQuestions(content string) []questionItem {
@@ -135,41 +133,6 @@ func (m model) handleQuestionInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m, nil
-	}
-}
-
-func (m model) handleApiKeyWin(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
-
-		client.SetApiKey(m.modelsList[m.modelsListIndex], m.textarea.Value())
-		m.textarea.SetValue("")
-		m.enter_api_win = false
-		m.textarea.Placeholder = "Send a message..."
-		m.textarea.Focus()
-		m.syncLayout()
-		return m, nil
-	case "esc", "ctrl+c":
-		m.enter_api_win = false
-		m.textarea.SetValue("")
-		m.textarea.Placeholder = "Send a message..."
-		m.textarea.Focus()
-		m.syncLayout()
-		return m, nil
-	case "ctrl+v", "meta+v":
-		curVal := m.textarea.Value()
-		err := clipboard.Init()
-		if err != nil {
-			panic(err)
-		}
-		textBytes := clipboard.Read(clipboard.FmtText)
-		m.textarea.SetValue(curVal + string(textBytes))
-		return m, nil
-
-	default:
-		var cmd tea.Cmd
-		m.textarea, cmd = m.textarea.Update(msg)
-		return m, cmd
 	}
 }
 

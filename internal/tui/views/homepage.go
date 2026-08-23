@@ -23,7 +23,6 @@ import (
 	"github.com/Kartik-2239/lightcode/internal/tui/components"
 	"github.com/aymanbagabas/go-nativeclipboard"
 	"github.com/charmbracelet/x/term"
-	"golang.design/x/clipboard"
 )
 
 const textareaPrompt = "❯ "
@@ -256,6 +255,17 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.PasteMsg:
+		var cmd tea.Cmd
+		fmt.Println(len(msg.Content))
+		if len(msg.Content) == 0 {
+			fmt.Println("handling with pasting img")
+			m, cmd := m.handlePaste(true, msg.Content)
+			return m, cmd
+		}
+		m, cmd := m.handlePaste(false, msg.Content)
+		m.syncLayout()
+		return m, cmd
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -370,63 +380,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// m.islistSessionWin = true
 
 		case "ctrl+v", "meta+v":
-			curVal := m.textarea.Value()
-			err := clipboard.Init()
-			if err != nil {
-				panic(err)
-			}
-			// textBytes := clipboard.Read(clipboard.FmtText)
-			// imgBytes := clipboard.Read(clipboard.FmtImage)
-			textBytes, textErr := nativeclipboard.Text.Read()
-			imgBytes, imgErr := nativeclipboard.Image.Read()
-			if textErr != nil && imgErr != nil {
-				m.isError = true
-				m.errorMessage = textErr.Error() + imgErr.Error()
-				return m, nil
-			}
-			nextVal := curVal
-			var cmd tea.Cmd
-			if imgBytes != nil {
-				m.imgPasteCounter++
-				m.pastedImgs[m.imgPasteCounter] = imgBytes
-				preview, upload := buildKittyPreviewUpload(imgBytes, m.imgPasteCounter, m.width, 10, os.Getenv("TMUX") != "")
-				if preview.id > 0 && upload != "" {
-					m.pastedImgPreviews[m.imgPasteCounter] = preview
-					cmd = tea.Raw(upload)
-				}
-				placeholder := fmt.Sprintf("[pasted img #%d]", m.imgPasteCounter)
-				nextVal = strings.TrimSpace(nextVal + " " + placeholder)
-			}
-			pasteValue := string(textBytes)
-			if pasteValue == "" {
-				m.textarea.SetValue(nextVal)
-			} else if strings.Count(pasteValue, "\n") > 1 {
-				m.pasteCounter++
-				m.pastedTexts[m.pasteCounter] = pasteValue
-				placeholder := fmt.Sprintf("[pasted text #%d]", m.pasteCounter)
-				m.textarea.InsertString(strings.TrimSpace(placeholder))
-				// m.textarea.SetValue()
-			} else {
-				// m.textarea.SetValue(nextVal + pasteValue)
-				m.textarea.InsertString(strings.TrimSpace(pasteValue))
-			}
-
-			if len(strings.Split(curVal, "\n")) > len(strings.Split(m.textarea.Value(), "\n")) {
-				if m.textarea.Height()-1 >= 1 {
-					m.textarea.SetHeight(m.textarea.Height() - 1)
-				}
-			}
-			if len(strings.Split(curVal, "\n")) < len(strings.Split(m.textarea.Value(), "\n")) {
-				m.textarea.SetHeight(m.textarea.Height() + 1)
-			}
-			m.resizeTextareaToContent()
-			m.syncLayout()
-			return m, cmd
-		// case "shift+enter":
-		// 	curVal := m.textarea.Value()
-		// 	m.textarea.SetValue(curVal + "\n")
-		// 	m.adjustTextareaHeight()
-		// 	return m, nil
+			return m.handlePaste(true, "")
 		case "enter":
 			if m.isFileListWin {
 				m.acceptFileMention()
@@ -757,4 +711,42 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m model) handlePaste(isImg bool, content string) (model, tea.Cmd) {
+	if !isImg {
+		to_paste := strings.TrimSpace(content)
+		if strings.Count(content, "\n") > 1 {
+			m.pasteCounter++
+			m.pastedTexts[m.pasteCounter] = content
+			to_paste = fmt.Sprintf("[pasted text #%d]", m.pasteCounter)
+		}
+		m.textarea, _ = m.textarea.Update(tea.PasteMsg{Content: to_paste})
+		m.resizeTextareaToContent()
+		m.syncLayout()
+		return m, nil
+	}
+
+	imgBytes, imgErr := nativeclipboard.Image.Read()
+	if imgErr != nil {
+		m.isError = true
+		m.errorMessage = imgErr.Error()
+		return m, nil
+	}
+	var cmd tea.Cmd
+	if imgBytes != nil {
+		m.imgPasteCounter++
+		m.pastedImgs[m.imgPasteCounter] = imgBytes
+		preview, upload := buildKittyPreviewUpload(imgBytes, m.imgPasteCounter, m.width, 10)
+		if preview.id > 0 && upload != "" {
+			m.pastedImgPreviews[m.imgPasteCounter] = preview
+			cmd = tea.Raw(upload)
+		}
+		placeholder := fmt.Sprintf("[pasted img #%d]", m.imgPasteCounter)
+		m.textarea, _ = m.textarea.Update(tea.PasteMsg{Content: placeholder})
+	}
+
+	m.resizeTextareaToContent()
+	m.syncLayout()
+	return m, cmd
 }

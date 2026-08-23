@@ -5,13 +5,15 @@ import (
 	"hash/fnv"
 	"image"
 	"math"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/kitty"
 )
 
-func buildKittyPreviewUpload(data []byte, pasteIndex, maxCols, maxRows int, tmux bool) (kittyPreview, string) {
+func buildKittyPreviewUpload(data []byte, pasteIndex, maxCols, maxRows int) (kittyPreview, string) {
+	tmux := os.Getenv("TMUX") != ""
 	if len(data) == 0 || pasteIndex <= 0 || maxCols <= 0 || maxRows <= 0 {
 		return kittyPreview{}, ""
 	}

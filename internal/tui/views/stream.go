@@ -85,7 +85,7 @@ func (m *model) beginGeneration(prompt string) tea.Cmd {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// ch := client.ChatCompletion(ctx, m.currentSession.ID, textareaValue, m.mode, img_bytes)
-	ch := client.ChatCompletion(ctx, m.currentSession.ID, "", m.mode, [][]byte{})
+	ch := client.ChatCompletion(ctx, m.currentSession.ID, textareaValue, m.mode, img_bytes)
 
 	m.queue = []queue{}
 
