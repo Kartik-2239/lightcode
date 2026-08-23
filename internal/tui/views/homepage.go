@@ -257,7 +257,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.PasteMsg:
 		var cmd tea.Cmd
-		fmt.Println(len(msg.Content))
 		if len(msg.Content) == 0 {
 			fmt.Println("handling with pasting img")
 			m, cmd := m.handlePaste(true, msg.Content)
